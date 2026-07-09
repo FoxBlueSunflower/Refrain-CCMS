@@ -12,6 +12,7 @@ interface SidebarProps {
   onSelectSnippet?: (path: string) => void
   onRenameSnippet?: (path: string) => void
   onDeleteSnippet?: (path: string) => void
+  onOpenVariables?: () => void
   /** Bump this to force the tree to re-fetch after an external change. */
   refreshToken?: number
 }
@@ -53,6 +54,7 @@ export function Sidebar({
   onSelectSnippet,
   onRenameSnippet,
   onDeleteSnippet,
+  onOpenVariables,
   refreshToken,
 }: SidebarProps) {
   const docs = useTree(readDocTree, handle, refreshToken)
@@ -122,6 +124,19 @@ export function Sidebar({
           />
         )}
       </div>
+
+      {onOpenVariables && (
+        <div>
+          <h2 className="mb-1 truncate text-sm font-semibold uppercase tracking-wide text-gray-400">Variables</h2>
+          <button
+            type="button"
+            className="block w-full truncate rounded px-1 py-0.5 text-left text-sm text-gray-300 hover:bg-gray-700"
+            onClick={onOpenVariables}
+          >
+            Edit variables
+          </button>
+        </div>
+      )}
     </aside>
   )
 }
