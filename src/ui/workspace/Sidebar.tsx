@@ -8,7 +8,10 @@ interface SidebarProps {
   onSelectDocument?: (path: string) => void
   onRenameDocument?: (path: string) => void
   onDeleteDocument?: (path: string) => void
+  onNewSnippet?: () => void
   onSelectSnippet?: (path: string) => void
+  onRenameSnippet?: (path: string) => void
+  onDeleteSnippet?: (path: string) => void
   /** Bump this to force the tree to re-fetch after an external change. */
   refreshToken?: number
 }
@@ -46,7 +49,10 @@ export function Sidebar({
   onSelectDocument,
   onRenameDocument,
   onDeleteDocument,
+  onNewSnippet,
   onSelectSnippet,
+  onRenameSnippet,
+  onDeleteSnippet,
   refreshToken,
 }: SidebarProps) {
   const docs = useTree(readDocTree, handle, refreshToken)
@@ -87,14 +93,33 @@ export function Sidebar({
       </div>
 
       <div>
-        <h2 className="mb-1 truncate text-sm font-semibold uppercase tracking-wide text-gray-500">Snippets</h2>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-500">Snippets</h2>
+          {onNewSnippet && (
+            <button
+              type="button"
+              className="rounded px-2 text-lg leading-none text-violet-600 hover:bg-violet-50"
+              onClick={onNewSnippet}
+              title="New snippet"
+              aria-label="New snippet"
+            >
+              +
+            </button>
+          )}
+        </div>
         {snippets.error && <p className="text-sm text-red-600">{snippets.error}</p>}
         {!snippets.error && snippets.tree === null && <p className="text-sm text-gray-400">Loading snippets…</p>}
         {!snippets.error && snippets.tree !== null && snippets.tree.length === 0 && (
           <p className="text-sm text-gray-400">No snippets yet.</p>
         )}
         {snippets.tree && snippets.tree.length > 0 && (
-          <DocTreeList nodes={snippets.tree} depth={0} onSelectDocument={onSelectSnippet} />
+          <DocTreeList
+            nodes={snippets.tree}
+            depth={0}
+            onSelectDocument={onSelectSnippet}
+            onRenameDocument={onRenameSnippet}
+            onDeleteDocument={onDeleteSnippet}
+          />
         )}
       </div>
     </aside>

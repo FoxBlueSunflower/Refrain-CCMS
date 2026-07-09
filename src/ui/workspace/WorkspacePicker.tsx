@@ -74,7 +74,7 @@ export function WorkspacePicker({ onConnected, errorMessage }: WorkspacePickerPr
             </button>
             <button
               type="button"
-              className="rounded border border-gray-300 px-4 py-2 hover:bg-gray-50"
+              className="rounded border border-gray-300 px-4 py-2 text-violet-700 hover:bg-violet-50"
               onClick={() => setState({ step: 'idle' })}
             >
               Choose a different folder

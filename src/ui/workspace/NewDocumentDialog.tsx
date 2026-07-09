@@ -44,7 +44,7 @@ export function DocumentTitleDialog({
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+            className="rounded border border-gray-300 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-50"
             onClick={onCancel}
           >
             Cancel
