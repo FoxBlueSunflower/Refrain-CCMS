@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { slugify, withMdExtension } from '../../core/workspace/paths'
-import { deleteEntry, pathExists, renameFile, writeTextFile } from '../../fs'
+import { deleteEntry, pathExists, readTextFile, renameFile, writeTextFile } from '../../fs'
+import { EditorPane, type SaveStatus } from '../editor/EditorPane'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DocumentTitleDialog } from './NewDocumentDialog'
 import { Sidebar } from './Sidebar'
@@ -16,6 +17,19 @@ type ModalState =
   | { kind: 'new'; entryKind: EntryKind }
   | { kind: 'rename'; entryKind: EntryKind; path: string }
   | { kind: 'delete'; entryKind: EntryKind; path: string }
+
+interface OpenDocument {
+  kind: EntryKind
+  relPath: string
+  fullPath: string
+}
+
+interface ActiveFile {
+  fullPath: string
+  savedText: string
+}
+
+const AUTOSAVE_DELAY_MS = 1200
 
 function baseDirFor(entryKind: EntryKind): string {
   return entryKind === 'document' ? 'docs' : 'snippets'
@@ -55,7 +69,105 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const [refreshToken, setRefreshToken] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
+  const [openDoc, setOpenDoc] = useState<OpenDocument | null>(null)
+  const [liveText, setLiveText] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [openError, setOpenError] = useState<string | null>(null)
+
+  // Updated synchronously (never via a lagging effect) so async timers and
+  // handlers always see the latest edited text and active file — this is
+  // what makes fast file-switching lossless.
+  const bufferRef = useRef('')
+  const activeRef = useRef<ActiveFile | null>(null)
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const bump = () => setRefreshToken((t) => t + 1)
+
+  const performSave = useCallback(
+    async (fullPath: string, text: string) => {
+      setSaveStatus('saving')
+      try {
+        await writeTextFile(handle, fullPath, text)
+        if (activeRef.current?.fullPath === fullPath) {
+          activeRef.current.savedText = text
+          setDirty(bufferRef.current !== text)
+        }
+        setSaveStatus('saved')
+        setOpenError(null)
+      } catch (err) {
+        setSaveStatus('error')
+        setOpenError(`Could not save: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    },
+    [handle],
+  )
+
+  const flushPendingSave = useCallback(async () => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+    const active = activeRef.current
+    if (active && bufferRef.current !== active.savedText) {
+      await performSave(active.fullPath, bufferRef.current)
+    }
+  }, [performSave])
+
+  const openEntry = useCallback(
+    async (kind: EntryKind, relPath: string) => {
+      const fullPath = `${baseDirFor(kind)}/${relPath}`
+      if (activeRef.current?.fullPath === fullPath) return
+
+      await flushPendingSave()
+      setOpenError(null)
+      try {
+        const text = await readTextFile(handle, fullPath)
+        bufferRef.current = text
+        activeRef.current = { fullPath, savedText: text }
+        setOpenDoc({ kind, relPath, fullPath })
+        setLiveText(text)
+        setDirty(false)
+        setSaveStatus('idle')
+      } catch (err) {
+        activeRef.current = null
+        setOpenDoc(null)
+        setOpenError(err instanceof Error ? err.message : String(err))
+      }
+    },
+    [handle, flushPendingSave],
+  )
+
+  const handleBufferChange = useCallback(
+    (next: string) => {
+      bufferRef.current = next
+      setLiveText(next)
+      const active = activeRef.current
+      const isDirty = active ? next !== active.savedText : false
+      setDirty(isDirty)
+
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+      if (isDirty) {
+        autosaveTimerRef.current = setTimeout(() => {
+          autosaveTimerRef.current = null
+          const currentActive = activeRef.current
+          if (currentActive && bufferRef.current !== currentActive.savedText) {
+            void performSave(currentActive.fullPath, bufferRef.current)
+          }
+        }, AUTOSAVE_DELAY_MS)
+      }
+    },
+    [performSave],
+  )
+
+  const handleExplicitSave = useCallback(() => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+    const active = activeRef.current
+    if (active) void performSave(active.fullPath, bufferRef.current)
+  }, [performSave])
 
   const handleCreate = useCallback(
     async (entryKind: EntryKind, title: string) => {
@@ -66,11 +178,12 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         setError(null)
         setModal({ kind: 'none' })
         bump()
+        void openEntry(entryKind, path.slice(baseDir.length + 1))
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       }
     },
-    [handle],
+    [handle, openEntry],
   )
 
   const handleRename = useCallback(
@@ -86,6 +199,10 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           return
         }
         await renameFile(handle, oldPath, newPath)
+        if (activeRef.current?.fullPath === oldPath) {
+          activeRef.current.fullPath = newPath
+          setOpenDoc({ kind: entryKind, relPath: segments.join('/'), fullPath: newPath })
+        }
         setError(null)
         setModal({ kind: 'none' })
         bump()
@@ -99,7 +216,16 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const handleDelete = useCallback(
     async (entryKind: EntryKind, relPath: string) => {
       try {
-        await deleteEntry(handle, `${baseDirFor(entryKind)}/${relPath}`)
+        const fullPath = `${baseDirFor(entryKind)}/${relPath}`
+        await deleteEntry(handle, fullPath)
+        if (activeRef.current?.fullPath === fullPath) {
+          if (autosaveTimerRef.current) {
+            clearTimeout(autosaveTimerRef.current)
+            autosaveTimerRef.current = null
+          }
+          activeRef.current = null
+          setOpenDoc(null)
+        }
         setError(null)
         setModal({ kind: 'none' })
         bump()
@@ -116,16 +242,33 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         handle={handle}
         refreshToken={refreshToken}
         onNewDocument={() => setModal({ kind: 'new', entryKind: 'document' })}
+        onSelectDocument={(path) => void openEntry('document', path)}
         onRenameDocument={(path) => setModal({ kind: 'rename', entryKind: 'document', path })}
         onDeleteDocument={(path) => setModal({ kind: 'delete', entryKind: 'document', path })}
         onNewSnippet={() => setModal({ kind: 'new', entryKind: 'snippet' })}
+        onSelectSnippet={(path) => void openEntry('snippet', path)}
         onRenameSnippet={(path) => setModal({ kind: 'rename', entryKind: 'snippet', path })}
         onDeleteSnippet={(path) => setModal({ kind: 'delete', entryKind: 'snippet', path })}
       />
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 text-gray-400">
-        <p>Select a document</p>
-        {error && <p className="max-w-md text-center text-sm text-red-600">{error}</p>}
-      </main>
+      {openDoc ? (
+        <EditorPane
+          key={openDoc.fullPath}
+          title={titleFromPath(openDoc.relPath)}
+          path={openDoc.fullPath}
+          initialValue={bufferRef.current}
+          liveText={liveText}
+          dirty={dirty}
+          saveStatus={saveStatus}
+          error={openError}
+          onChange={handleBufferChange}
+          onSave={handleExplicitSave}
+        />
+      ) : (
+        <main className="flex flex-1 flex-col items-center justify-center gap-2 text-gray-400">
+          <p>Select a document</p>
+          {(error ?? openError) && <p className="max-w-md text-center text-sm text-red-600">{error ?? openError}</p>}
+        </main>
+      )}
 
       {modal.kind === 'new' && (
         <DocumentTitleDialog
