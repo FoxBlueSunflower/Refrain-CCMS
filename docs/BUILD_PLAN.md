@@ -20,10 +20,10 @@ IndexedDB; re-open flow ("reconnect to My Docs?"); file tree sidebar from
 docs/ + snippets/; "New workspace" creates the SPEC.md sample workspace
 (sample docs, snippets, variables.json, conditions.json, workspace.json).
 **Accept when:**
-- [ ] First run: create-or-open flow works; sample workspace generated
-- [ ] Restart browser → one click reconnects; tree renders
-- [ ] Create/rename/delete a document updates real files on disk
-- [ ] Wiping site data loses NOTHING but the reconnect convenience (verify!)
+- [x] First run: create-or-open flow works; sample workspace generated
+- [x] Restart browser → one click reconnects; tree renders
+- [x] Create/rename/delete a document updates real files on disk
+- [x] Wiping site data loses NOTHING but the reconnect convenience (verify!)
 
 ## PHASE 2 — Editor
 CodeMirror 6 markdown editor; frontmatter-aware; live preview pane
