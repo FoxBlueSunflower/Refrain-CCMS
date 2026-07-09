@@ -1,6 +1,7 @@
 export type { DirectoryListEntry } from './directory'
 export { deleteEntry, FsWriteError, listDirectory, pathExists, readTextFile, renameFile, writeTextFile } from './directory'
 export { readDocTree, readSnippetList } from './doc-tree'
+export { readAllSnippets, readVariablesFile } from './resolver-data'
 export {
   clearStoredWorkspaceHandle,
   getStoredWorkspaceHandle,

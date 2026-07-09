@@ -82,3 +82,17 @@ body {
 .markdown-body a {
   color: #7c3aed;
 }
+
+.rf-resolved-var {
+  background-color: #ede9fe;
+  border-radius: 0.2em;
+  padding: 0 0.2em;
+}
+
+.rf-resolve-error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-radius: 0.2em;
+  padding: 0 0.35em;
+  font-size: 0.9em;
+}
