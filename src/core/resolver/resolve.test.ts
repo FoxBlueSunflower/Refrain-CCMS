@@ -104,4 +104,32 @@ describe('resolveDocument', () => {
     )
     expect(result.warnings).toEqual([{ type: 'circular-snippet', key: 'loop', message: expect.any(String) }])
   })
+
+  it('HTML-escapes a variable value so it cannot inject markup', () => {
+    const result = resolveDocument(
+      'Say {{greeting}}.',
+      ctx({
+        variables: {
+          greeting: { value: '<img src=x onerror=alert(1)>', description: '' },
+        },
+      }),
+    )
+    expect(result.warnings).toEqual([])
+    expect(result.text).not.toContain('<img')
+    expect(result.text).toContain('&lt;img src=x onerror=alert(1)&gt;')
+  })
+
+  it('leaves a document with no tokens unchanged', () => {
+    const result = resolveDocument('Just plain markdown, no tokens here.\n', ctx())
+    expect(result.warnings).toEqual([])
+    expect(result.text).toBe('Just plain markdown, no tokens here.\n')
+  })
+
+  it('reports every missing variable in a document, not just the first', () => {
+    const result = resolveDocument('{{first_missing}} and {{second_missing}}', ctx())
+    expect(result.warnings).toEqual([
+      { type: 'missing-variable', key: 'first_missing', message: expect.any(String) },
+      { type: 'missing-variable', key: 'second_missing', message: expect.any(String) },
+    ])
+  })
 })
