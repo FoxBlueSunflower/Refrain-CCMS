@@ -64,6 +64,18 @@ export async function writeTextFile(dir: FileSystemDirectoryHandle, path: string
   }
 }
 
+export async function pathExists(dir: FileSystemDirectoryHandle, path: string): Promise<boolean> {
+  const segments = splitPath(path)
+  const fileName = segments[segments.length - 1]
+  try {
+    const parent = await resolveDirectory(dir, segments.slice(0, -1))
+    await parent.getFileHandle(fileName)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function deleteEntry(dir: FileSystemDirectoryHandle, path: string): Promise<void> {
   const segments = splitPath(path)
   const name = segments[segments.length - 1]
