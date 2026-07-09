@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { DocTreeNode } from '../../core/workspace/types'
-import { readDocTree } from '../../fs'
+import { readDocTree, readSnippetList } from '../../fs'
 
 interface SidebarProps {
   handle: FileSystemDirectoryHandle
@@ -8,18 +8,16 @@ interface SidebarProps {
   onSelectDocument?: (path: string) => void
   onRenameDocument?: (path: string) => void
   onDeleteDocument?: (path: string) => void
+  onSelectSnippet?: (path: string) => void
   /** Bump this to force the tree to re-fetch after an external change. */
   refreshToken?: number
 }
 
-export function Sidebar({
-  handle,
-  onNewDocument,
-  onSelectDocument,
-  onRenameDocument,
-  onDeleteDocument,
-  refreshToken,
-}: SidebarProps) {
+function useTree(
+  fetcher: (handle: FileSystemDirectoryHandle) => Promise<DocTreeNode[]>,
+  handle: FileSystemDirectoryHandle,
+  refreshToken: number | undefined,
+) {
   const [tree, setTree] = useState<DocTreeNode[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -27,7 +25,7 @@ export function Sidebar({
     let cancelled = false
     setTree(null)
     setError(null)
-    readDocTree(handle)
+    fetcher(handle)
       .then((result) => {
         if (!cancelled) setTree(result)
       })
@@ -37,37 +35,68 @@ export function Sidebar({
     return () => {
       cancelled = true
     }
-  }, [handle, refreshToken])
+  }, [fetcher, handle, refreshToken])
+
+  return { tree, error }
+}
+
+export function Sidebar({
+  handle,
+  onNewDocument,
+  onSelectDocument,
+  onRenameDocument,
+  onDeleteDocument,
+  onSelectSnippet,
+  refreshToken,
+}: SidebarProps) {
+  const docs = useTree(readDocTree, handle, refreshToken)
+  const snippets = useTree(readSnippetList, handle, refreshToken)
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-3 border-r border-gray-200 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-500">{handle.name}</h2>
-        {onNewDocument && (
-          <button
-            type="button"
-            className="rounded px-2 text-lg leading-none text-violet-600 hover:bg-violet-50"
-            onClick={onNewDocument}
-            title="New document"
-            aria-label="New document"
-          >
-            +
-          </button>
+    <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-gray-200 p-4">
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-500">{handle.name}</h2>
+          {onNewDocument && (
+            <button
+              type="button"
+              className="rounded px-2 text-lg leading-none text-violet-600 hover:bg-violet-50"
+              onClick={onNewDocument}
+              title="New document"
+              aria-label="New document"
+            >
+              +
+            </button>
+          )}
+        </div>
+
+        {docs.error && <p className="text-sm text-red-600">{docs.error}</p>}
+        {!docs.error && docs.tree === null && <p className="text-sm text-gray-400">Loading documents…</p>}
+        {!docs.error && docs.tree !== null && docs.tree.length === 0 && (
+          <p className="text-sm text-gray-400">No documents yet.</p>
+        )}
+        {docs.tree && docs.tree.length > 0 && (
+          <DocTreeList
+            nodes={docs.tree}
+            depth={0}
+            onSelectDocument={onSelectDocument}
+            onRenameDocument={onRenameDocument}
+            onDeleteDocument={onDeleteDocument}
+          />
         )}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {!error && tree === null && <p className="text-sm text-gray-400">Loading documents…</p>}
-      {!error && tree !== null && tree.length === 0 && <p className="text-sm text-gray-400">No documents yet.</p>}
-      {tree && tree.length > 0 && (
-        <DocTreeList
-          nodes={tree}
-          depth={0}
-          onSelectDocument={onSelectDocument}
-          onRenameDocument={onRenameDocument}
-          onDeleteDocument={onDeleteDocument}
-        />
-      )}
+      <div>
+        <h2 className="mb-1 truncate text-sm font-semibold uppercase tracking-wide text-gray-500">Snippets</h2>
+        {snippets.error && <p className="text-sm text-red-600">{snippets.error}</p>}
+        {!snippets.error && snippets.tree === null && <p className="text-sm text-gray-400">Loading snippets…</p>}
+        {!snippets.error && snippets.tree !== null && snippets.tree.length === 0 && (
+          <p className="text-sm text-gray-400">No snippets yet.</p>
+        )}
+        {snippets.tree && snippets.tree.length > 0 && (
+          <DocTreeList nodes={snippets.tree} depth={0} onSelectDocument={onSelectSnippet} />
+        )}
+      </div>
     </aside>
   )
 }
