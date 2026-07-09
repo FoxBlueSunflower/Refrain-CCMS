@@ -51,7 +51,10 @@ export function CodeMirrorEditor({ path, initialValue, onChange, onSave }: CodeM
           },
         ]),
         EditorView.theme({
-          '&': { height: '100%', fontSize: '14px' },
+          '&': { height: '100%', fontSize: '14px', backgroundColor: '#ffffff', color: '#111827' },
+          '.cm-content': { caretColor: '#111827' },
+          '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#111827' },
+          '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: '#c7d2fe' },
           '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, monospace' },
         }),
       ],

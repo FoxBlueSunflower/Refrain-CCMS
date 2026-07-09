@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 * {
@@ -10,10 +10,13 @@
 
 body {
   margin: 0;
+  background-color: #ffffff;
+  color: #111827;
 }
 
 .markdown-body {
   line-height: 1.6;
+  background-color: #ffffff;
   color: var(--color-gray-800, #1f2937);
 }
 

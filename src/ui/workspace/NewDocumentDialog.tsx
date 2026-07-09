@@ -39,7 +39,7 @@ export function DocumentTitleDialog({
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           placeholder="Document title"
-          className="mt-3 w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-violet-500 focus:outline-none"
+          className="mt-3 w-full rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-violet-500 focus:outline-none"
         />
         <div className="mt-4 flex justify-end gap-2">
           <button

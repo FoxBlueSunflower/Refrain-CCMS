@@ -42,3 +42,41 @@ export function uniqueSlug(base: string, existing: ReadonlySet<string>): string 
   }
   return `${base}-${n}`
 }
+
+/**
+ * True for hrefs that should be left to native browser navigation: scheme-qualified
+ * URLs (http:, https:, mailto:, ...) and protocol-relative (//host/...) links.
+ */
+export function isExternalHref(href: string): boolean {
+  return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href) || href.startsWith('//')
+}
+
+/**
+ * Resolves a markdown `href` found inside the document at `currentRelPath`
+ * (both relative to the workspace's docs/ folder) into a normalized target
+ * relPath. Returns null for anything that isn't an in-workspace document
+ * link the preview should intercept: external/scheme hrefs, in-page anchors,
+ * absolute paths, links that normalize above docs/, or non-.md targets.
+ */
+export function resolveRelativeDocLink(currentRelPath: string, href: string): string | null {
+  if (!href || href.startsWith('#') || href.startsWith('/') || isExternalHref(href)) return null
+
+  const [withoutHash] = href.split('#')
+  const currentDirSegments = splitPath(currentRelPath).slice(0, -1)
+  const hrefSegments = splitPath(withoutHash)
+
+  const resolved: string[] = [...currentDirSegments]
+  for (const segment of hrefSegments) {
+    if (segment === '.') continue
+    if (segment === '..') {
+      if (resolved.length === 0) return null
+      resolved.pop()
+      continue
+    }
+    resolved.push(segment)
+  }
+
+  if (resolved.length === 0) return null
+  const target = resolved.join('/')
+  return target.endsWith('.md') ? target : null
+}

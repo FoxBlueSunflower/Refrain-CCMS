@@ -138,6 +138,20 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
     [handle, flushPendingSave],
   )
 
+  const handleNavigateFromPreview = useCallback(
+    async (relPath: string) => {
+      const fullPath = `${baseDirFor('document')}/${relPath}`
+      if (!(await pathExists(handle, fullPath))) {
+        setOpenError(
+          `Couldn't open "${titleFromPath(relPath)}" — the linked document doesn't exist. It may have been renamed or deleted.`,
+        )
+        return
+      }
+      await openEntry('document', relPath)
+    },
+    [handle, openEntry],
+  )
+
   const handleBufferChange = useCallback(
     (next: string) => {
       bufferRef.current = next
@@ -213,6 +227,7 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
     [handle],
   )
 
+  // TODO(future phase): warn on delete if other docs/snippets link to or embed this file
   const handleDelete = useCallback(
     async (entryKind: EntryKind, relPath: string) => {
       try {
@@ -260,11 +275,13 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           dirty={dirty}
           saveStatus={saveStatus}
           error={openError}
+          currentRelPath={openDoc.kind === 'document' ? openDoc.relPath : null}
           onChange={handleBufferChange}
           onSave={handleExplicitSave}
+          onNavigate={(relPath) => void handleNavigateFromPreview(relPath)}
         />
       ) : (
-        <main className="flex flex-1 flex-col items-center justify-center gap-2 text-gray-400">
+        <main className="flex flex-1 flex-col items-center justify-center gap-2 bg-white text-gray-400">
           <p>Select a document</p>
           {(error ?? openError) && <p className="max-w-md text-center text-sm text-red-600">{error ?? openError}</p>}
         </main>
