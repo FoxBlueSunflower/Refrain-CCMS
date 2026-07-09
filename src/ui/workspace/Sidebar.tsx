@@ -59,14 +59,14 @@ export function Sidebar({
   const snippets = useTree(readSnippetList, handle, refreshToken)
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-gray-200 bg-white p-4">
+    <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-gray-700 bg-gray-800 p-4">
       <div>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-500">{handle.name}</h2>
+          <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-400">{handle.name}</h2>
           {onNewDocument && (
             <button
               type="button"
-              className="rounded px-2 text-lg leading-none text-violet-600 hover:bg-violet-50"
+              className="rounded px-2 text-lg leading-none text-violet-400 hover:bg-gray-700"
               onClick={onNewDocument}
               title="New document"
               aria-label="New document"
@@ -76,7 +76,7 @@ export function Sidebar({
           )}
         </div>
 
-        {docs.error && <p className="text-sm text-red-600">{docs.error}</p>}
+        {docs.error && <p className="text-sm text-red-400">{docs.error}</p>}
         {!docs.error && docs.tree === null && <p className="text-sm text-gray-400">Loading documents…</p>}
         {!docs.error && docs.tree !== null && docs.tree.length === 0 && (
           <p className="text-sm text-gray-400">No documents yet.</p>
@@ -94,11 +94,11 @@ export function Sidebar({
 
       <div>
         <div className="mb-1 flex items-center justify-between gap-2">
-          <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-500">Snippets</h2>
+          <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-400">Snippets</h2>
           {onNewSnippet && (
             <button
               type="button"
-              className="rounded px-2 text-lg leading-none text-violet-600 hover:bg-violet-50"
+              className="rounded px-2 text-lg leading-none text-violet-400 hover:bg-gray-700"
               onClick={onNewSnippet}
               title="New snippet"
               aria-label="New snippet"
@@ -107,7 +107,7 @@ export function Sidebar({
             </button>
           )}
         </div>
-        {snippets.error && <p className="text-sm text-red-600">{snippets.error}</p>}
+        {snippets.error && <p className="text-sm text-red-400">{snippets.error}</p>}
         {!snippets.error && snippets.tree === null && <p className="text-sm text-gray-400">Loading snippets…</p>}
         {!snippets.error && snippets.tree !== null && snippets.tree.length === 0 && (
           <p className="text-sm text-gray-400">No snippets yet.</p>
@@ -136,7 +136,7 @@ interface DocTreeListProps {
 
 function DocTreeList({ nodes, depth, onSelectDocument, onRenameDocument, onDeleteDocument }: DocTreeListProps) {
   return (
-    <ul className={depth === 0 ? 'space-y-1' : 'ml-3 space-y-1 border-l border-gray-100 pl-2'}>
+    <ul className={depth === 0 ? 'space-y-1' : 'ml-3 space-y-1 border-l border-gray-700 pl-2'}>
       {nodes.map((node) => (
         <li key={node.path}>
           {node.kind === 'folder' ? (
@@ -158,7 +158,7 @@ function DocTreeList({ nodes, depth, onSelectDocument, onRenameDocument, onDelet
             <div className="group flex items-center gap-1">
               <button
                 type="button"
-                className="block flex-1 truncate rounded px-1 py-0.5 text-left text-sm text-gray-600 hover:bg-gray-100"
+                className="block flex-1 truncate rounded px-1 py-0.5 text-left text-sm text-gray-300 hover:bg-gray-700"
                 onClick={() => onSelectDocument?.(node.path)}
               >
                 {node.name}
@@ -166,7 +166,7 @@ function DocTreeList({ nodes, depth, onSelectDocument, onRenameDocument, onDelet
               {onRenameDocument && (
                 <button
                   type="button"
-                  className="hidden shrink-0 rounded px-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-700 group-hover:block"
+                  className="hidden shrink-0 rounded px-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-gray-200 group-hover:block"
                   title="Rename"
                   aria-label={`Rename ${node.name}`}
                   onClick={() => onRenameDocument(node.path)}
@@ -177,7 +177,7 @@ function DocTreeList({ nodes, depth, onSelectDocument, onRenameDocument, onDelet
               {onDeleteDocument && (
                 <button
                   type="button"
-                  className="hidden shrink-0 rounded px-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-red-600 group-hover:block"
+                  className="hidden shrink-0 rounded px-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-red-400 group-hover:block"
                   title="Delete"
                   aria-label={`Delete ${node.name}`}
                   onClick={() => onDeleteDocument(node.path)}

@@ -70,7 +70,7 @@ function App() {
 
   if (state.status === 'checking') {
     return (
-      <main className="flex min-h-screen items-center justify-center text-gray-400">
+      <main className="flex min-h-screen items-center justify-center bg-gray-900 text-gray-400">
         <p>Loading…</p>
       </main>
     )

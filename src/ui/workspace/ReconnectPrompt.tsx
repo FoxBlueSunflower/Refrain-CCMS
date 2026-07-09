@@ -20,13 +20,13 @@ export function ReconnectPrompt({ handle, onGranted, onPickInstead }: ReconnectP
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-900 px-6 text-center">
       <h1 className="text-4xl font-semibold">Refrain</h1>
-      <p className="text-gray-600">
+      <p className="text-gray-300">
         Reconnect to &ldquo;{handle.name}&rdquo;?
       </p>
       {denied && (
-        <p className="max-w-md text-sm text-red-600">Permission was denied. Choose a folder to continue.</p>
+        <p className="max-w-md text-sm text-red-400">Permission was denied. Choose a folder to continue.</p>
       )}
       <div className="flex gap-3">
         <button
@@ -38,7 +38,7 @@ export function ReconnectPrompt({ handle, onGranted, onPickInstead }: ReconnectP
         </button>
         <button
           type="button"
-          className="rounded border border-gray-300 px-4 py-2 text-violet-700 hover:bg-violet-50"
+          className="rounded border border-gray-600 px-4 py-2 text-violet-400 hover:bg-gray-700"
           onClick={onPickInstead}
         >
           Choose a different folder

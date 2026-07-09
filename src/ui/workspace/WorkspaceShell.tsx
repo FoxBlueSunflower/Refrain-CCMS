@@ -281,9 +281,9 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           onNavigate={(relPath) => void handleNavigateFromPreview(relPath)}
         />
       ) : (
-        <main className="flex flex-1 flex-col items-center justify-center gap-2 bg-white text-gray-400">
+        <main className="flex flex-1 flex-col items-center justify-center gap-2 bg-gray-900 text-gray-400">
           <p>Select a document</p>
-          {(error ?? openError) && <p className="max-w-md text-center text-sm text-red-600">{error ?? openError}</p>}
+          {(error ?? openError) && <p className="max-w-md text-center text-sm text-red-400">{error ?? openError}</p>}
         </main>
       )}
 
