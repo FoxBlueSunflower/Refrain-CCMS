@@ -9,10 +9,10 @@ Do not start a phase until the previous phase's acceptance list fully passes.
 Vite + React + TS + Tailwind project; vite-plugin-pwa; GitHub Action that
 builds and deploys to GitHub Pages on push to main; placeholder app shell.
 **Accept when:**
-- [ ] `npm run dev` and `npm run build` succeed
-- [ ] Pushing to main auto-publishes to the GitHub Pages URL
-- [ ] Browser offers "Install app"; installed app opens in its own window
-- [ ] README has a 3-line description + the live URL
+- [x] `npm run dev` and `npm run build` succeed
+- [x] Pushing to main auto-publishes to the GitHub Pages URL
+- [x] Browser offers "Install app"; installed app opens in its own window
+- [x] README has a 3-line description + the live URL
 
 ## PHASE 1 — Workspace: open, read, create
 Folder picker (File System Access API); persist permission handle in
