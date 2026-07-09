@@ -41,10 +41,10 @@ preview pane switches to RESOLVED rendering with subtle highlight on
 substituted content. Editor autocomplete for {{ and {{> ; insert palette
 listing variables & snippets with descriptions.
 **Accept when:**
-- [ ] Unit tests: substitution, missing var, missing snippet, nested
+- [x] Unit tests: substitution, missing var, missing snippet, nested
       snippet, circular include, snippet-containing-variable — all pass
-- [ ] Autocomplete triggers on {{ and inserts correctly
-- [ ] Preview shows resolved output; errors render as inline notices
+- [x] Autocomplete triggers on {{ and inserts correctly
+- [x] Preview shows resolved output; errors render as inline notices
 
 ## PHASE 4 — Where-used index
 src/core/indexer: scan workspace → map of snippet/variable/condition →

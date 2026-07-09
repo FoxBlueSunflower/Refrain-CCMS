@@ -1,7 +1,11 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { parseFrontmatter } from '../../core/frontmatter/parse'
+import type { SnippetSource } from '../../core/resolver/types'
 import { slugify, withMdExtension } from '../../core/workspace/paths'
-import { deleteEntry, pathExists, readTextFile, renameFile, writeTextFile } from '../../fs'
+import type { VariablesFile } from '../../core/workspace/types'
+import { deleteEntry, pathExists, readAllSnippets, readTextFile, readVariablesFile, renameFile, writeTextFile } from '../../fs'
 import { EditorPane, type SaveStatus } from '../editor/EditorPane'
+import type { CompletionItem } from '../editor/completions'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DocumentTitleDialog } from './NewDocumentDialog'
 import { Sidebar } from './Sidebar'
@@ -75,6 +79,9 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [openError, setOpenError] = useState<string | null>(null)
 
+  const [variables, setVariables] = useState<VariablesFile>({})
+  const [snippets, setSnippets] = useState<SnippetSource>({})
+
   // Updated synchronously (never via a lagging effect) so async timers and
   // handlers always see the latest edited text and active file — this is
   // what makes fast file-switching lossless.
@@ -83,6 +90,33 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const bump = () => setRefreshToken((t) => t + 1)
+
+  const reloadResolverData = useCallback(async () => {
+    const [nextVariables, nextSnippets] = await Promise.all([readVariablesFile(handle), readAllSnippets(handle)])
+    setVariables(nextVariables)
+    setSnippets(nextSnippets)
+  }, [handle])
+
+  useEffect(() => {
+    void reloadResolverData()
+  }, [reloadResolverData, refreshToken])
+
+  const resolveContext = useMemo(() => ({ variables, snippets }), [variables, snippets])
+
+  const completionItems = useMemo(() => {
+    const variableItems: CompletionItem[] = Object.entries(variables)
+      .map(([key, entry]) => ({ key, description: entry.description }))
+      .sort((a, b) => a.key.localeCompare(b.key))
+
+    const snippetItems: CompletionItem[] = Object.entries(snippets)
+      .map(([key, raw]) => {
+        const { frontmatter } = parseFrontmatter(raw)
+        return { key, description: typeof frontmatter.description === 'string' ? frontmatter.description : '' }
+      })
+      .sort((a, b) => a.key.localeCompare(b.key))
+
+    return { variables: variableItems, snippets: snippetItems }
+  }, [variables, snippets])
 
   const performSave = useCallback(
     async (fullPath: string, text: string) => {
@@ -95,12 +129,13 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         }
         setSaveStatus('saved')
         setOpenError(null)
+        void reloadResolverData()
       } catch (err) {
         setSaveStatus('error')
         setOpenError(`Could not save: ${err instanceof Error ? err.message : String(err)}`)
       }
     },
-    [handle],
+    [handle, reloadResolverData],
   )
 
   const flushPendingSave = useCallback(async () => {
@@ -276,6 +311,8 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           saveStatus={saveStatus}
           error={openError}
           currentRelPath={openDoc.kind === 'document' ? openDoc.relPath : null}
+          resolveContext={resolveContext}
+          completionItems={completionItems}
           onChange={handleBufferChange}
           onSave={handleExplicitSave}
           onNavigate={(relPath) => void handleNavigateFromPreview(relPath)}

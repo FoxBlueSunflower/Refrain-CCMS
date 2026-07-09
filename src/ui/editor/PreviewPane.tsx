@@ -1,6 +1,8 @@
 import { useMemo, type MouseEvent } from 'react'
 import { marked } from 'marked'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
+import { resolveDocument } from '../../core/resolver/resolve'
+import type { ResolveContext } from '../../core/resolver/types'
 import { isExternalHref, resolveRelativeDocLink } from '../../core/workspace/paths'
 
 interface PreviewPaneProps {
@@ -9,11 +11,13 @@ interface PreviewPaneProps {
    *  snippet (snippets have no folder concept to resolve relative links against). */
   currentRelPath: string | null
   onNavigate: (relPath: string) => void
+  resolveContext: ResolveContext
 }
 
-export function PreviewPane({ text, currentRelPath, onNavigate }: PreviewPaneProps) {
+export function PreviewPane({ text, currentRelPath, onNavigate, resolveContext }: PreviewPaneProps) {
   const parsed = useMemo(() => parseFrontmatter(text), [text])
-  const html = useMemo(() => marked.parse(parsed.body, { async: false }), [parsed.body])
+  const resolved = useMemo(() => resolveDocument(parsed.body, resolveContext), [parsed.body, resolveContext])
+  const html = useMemo(() => marked.parse(resolved.text, { async: false }), [resolved.text])
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {
     const anchor = (event.target as HTMLElement).closest('a')
@@ -33,15 +37,17 @@ export function PreviewPane({ text, currentRelPath, onNavigate }: PreviewPanePro
     event.preventDefault()
     if (currentRelPath === null) return
 
-    const resolved = resolveRelativeDocLink(currentRelPath, href)
-    if (resolved) onNavigate(resolved)
+    const resolvedLink = resolveRelativeDocLink(currentRelPath, href)
+    if (resolvedLink) onNavigate(resolvedLink)
   }
+
+  const warnings = [...parsed.warnings, ...resolved.warnings.map((w) => w.message)]
 
   return (
     <div className="h-full overflow-auto bg-white p-4 text-gray-900" onClick={handleClick}>
-      {parsed.warnings.length > 0 && (
+      {warnings.length > 0 && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-          {parsed.warnings.map((warning) => (
+          {warnings.map((warning) => (
             <p key={warning}>{warning}</p>
           ))}
         </div>
