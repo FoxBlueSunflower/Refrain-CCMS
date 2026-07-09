@@ -30,9 +30,9 @@ CodeMirror 6 markdown editor; frontmatter-aware; live preview pane
 (markdown rendered, unresolved {{tokens}} shown as-is for now);
 autosave on idle + explicit save; dirty-state indicator.
 **Accept when:**
-- [ ] Open, edit, save documents and snippets; changes visible in Notepad
-- [ ] Preview updates live; no lost edits when switching files fast
-- [ ] A malformed frontmatter shows a friendly warning, never a crash
+- [x] Open, edit, save documents and snippets; changes visible in Notepad
+- [x] Preview updates live; no lost edits when switching files fast
+- [x] A malformed frontmatter shows a friendly warning, never a crash
 
 ## PHASE 3 — Resolver core (variables + snippets)
 src/core/resolver: substitute {{key}} from variables.json; transclude
