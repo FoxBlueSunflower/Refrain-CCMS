@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { isValidFilename, joinPath, slugify, splitPath, uniqueSlug, withMdExtension } from './paths'
+import {
+  isExternalHref,
+  isValidFilename,
+  joinPath,
+  resolveRelativeDocLink,
+  slugify,
+  splitPath,
+  uniqueSlug,
+  withMdExtension,
+} from './paths'
 
 describe('slugify', () => {
   it('lowercases and hyphenates spaces', () => {
@@ -90,5 +99,70 @@ describe('uniqueSlug', () => {
 
   it('keeps incrementing until a free slug is found', () => {
     expect(uniqueSlug('new-doc', new Set(['new-doc', 'new-doc-2', 'new-doc-3']))).toBe('new-doc-4')
+  })
+})
+
+describe('isExternalHref', () => {
+  it('recognizes http(s) URLs', () => {
+    expect(isExternalHref('https://example.com')).toBe(true)
+    expect(isExternalHref('http://example.com')).toBe(true)
+  })
+
+  it('recognizes mailto links', () => {
+    expect(isExternalHref('mailto:help@acme.com')).toBe(true)
+  })
+
+  it('recognizes protocol-relative links', () => {
+    expect(isExternalHref('//example.com/page')).toBe(true)
+  })
+
+  it('does not flag a plain relative markdown link', () => {
+    expect(isExternalHref('guides/installation.md')).toBe(false)
+  })
+})
+
+describe('resolveRelativeDocLink', () => {
+  it('resolves a same-directory link', () => {
+    expect(resolveRelativeDocLink('index.md', 'getting-started.md')).toBe('getting-started.md')
+  })
+
+  it('resolves a link into a subfolder', () => {
+    expect(resolveRelativeDocLink('index.md', 'guides/installation.md')).toBe('guides/installation.md')
+  })
+
+  it('resolves ../ from a nested document', () => {
+    expect(resolveRelativeDocLink('guides/installation.md', '../index.md')).toBe('index.md')
+  })
+
+  it('resolves a leading ./', () => {
+    expect(resolveRelativeDocLink('index.md', './getting-started.md')).toBe('getting-started.md')
+  })
+
+  it('rejects an absolute path', () => {
+    expect(resolveRelativeDocLink('index.md', '/docs/index.md')).toBeNull()
+  })
+
+  it('rejects an external URL', () => {
+    expect(resolveRelativeDocLink('index.md', 'https://example.com')).toBeNull()
+  })
+
+  it('rejects a mailto link', () => {
+    expect(resolveRelativeDocLink('index.md', 'mailto:help@acme.com')).toBeNull()
+  })
+
+  it('rejects a link that would escape above docs/', () => {
+    expect(resolveRelativeDocLink('index.md', '../../etc/passwd.md')).toBeNull()
+  })
+
+  it('rejects a non-.md target', () => {
+    expect(resolveRelativeDocLink('index.md', 'diagram.png')).toBeNull()
+  })
+
+  it('rejects an in-page anchor', () => {
+    expect(resolveRelativeDocLink('index.md', '#section')).toBeNull()
+  })
+
+  it('strips a trailing in-page anchor from an otherwise valid link', () => {
+    expect(resolveRelativeDocLink('index.md', 'guides/installation.md#warning')).toBe('guides/installation.md')
   })
 })

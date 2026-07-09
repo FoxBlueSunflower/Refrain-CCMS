@@ -59,7 +59,7 @@ export function Sidebar({
   const snippets = useTree(readSnippetList, handle, refreshToken)
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-gray-200 p-4">
+    <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-gray-200 bg-white p-4">
       <div>
         <div className="flex items-center justify-between gap-2">
           <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-500">{handle.name}</h2>
@@ -141,7 +141,9 @@ function DocTreeList({ nodes, depth, onSelectDocument, onRenameDocument, onDelet
         <li key={node.path}>
           {node.kind === 'folder' ? (
             <>
-              <span className="block truncate px-1 text-sm font-medium text-gray-700">{node.name}</span>
+              <span className="block cursor-default truncate px-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {node.name}
+              </span>
               {node.children && node.children.length > 0 && (
                 <DocTreeList
                   nodes={node.children}
