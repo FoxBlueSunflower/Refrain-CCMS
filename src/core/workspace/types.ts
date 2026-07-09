@@ -40,3 +40,9 @@ export interface DocTreeNode {
   path: string
   children?: DocTreeNode[]
 }
+
+/** A flat directory-walk result, relative to the workspace's docs/ folder. */
+export interface RawEntry {
+  path: string
+  kind: 'file' | 'directory'
+}
