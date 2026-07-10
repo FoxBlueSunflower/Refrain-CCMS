@@ -74,6 +74,51 @@ describe('buildDocTree', () => {
     expect(tree.map((n) => n.path)).toEqual(['guides', 'aaa-unordered'])
   })
 
+  it('applies frontmatter-derived file order, ordered files before unordered ones', () => {
+    const entries: RawEntry[] = [
+      { path: 'zebra.md', kind: 'file' },
+      { path: 'alpha.md', kind: 'file' },
+    ]
+    const fileOrder = new Map<string, number>([['zebra.md', 1]])
+    const tree = buildDocTree(entries, new Map(), fileOrder)
+    expect(tree.map((n) => n.path)).toEqual(['zebra.md', 'alpha.md'])
+  })
+
+  it('sorts ordered files and folders together by their shared order field', () => {
+    const entries: RawEntry[] = [
+      { path: 'later.md', kind: 'file' },
+      { path: 'guides', kind: 'directory' },
+      { path: 'first.md', kind: 'file' },
+    ]
+    const folderMeta = new Map<string, FolderMeta>([['guides', { order: 2 }]])
+    const fileOrder = new Map<string, number>([
+      ['first.md', 1],
+      ['later.md', 3],
+    ])
+    const tree = buildDocTree(entries, folderMeta, fileOrder)
+    expect(tree.map((n) => n.path)).toEqual(['first.md', 'guides', 'later.md'])
+  })
+
+  it('applies file order within a nested folder', () => {
+    const entries: RawEntry[] = [
+      { path: 'guides', kind: 'directory' },
+      { path: 'guides/zebra.md', kind: 'file' },
+      { path: 'guides/alpha.md', kind: 'file' },
+    ]
+    const fileOrder = new Map<string, number>([['guides/zebra.md', 1]])
+    const tree = buildDocTree(entries, new Map(), fileOrder)
+    const guides = tree.find((n) => n.path === 'guides')
+    expect(guides?.children?.map((c) => c.path)).toEqual(['guides/zebra.md', 'guides/alpha.md'])
+  })
+
+  it('is a no-op when fileOrder is omitted (backward-compatible default)', () => {
+    const entries: RawEntry[] = [
+      { path: 'zebra.md', kind: 'file' },
+      { path: 'alpha.md', kind: 'file' },
+    ]
+    expect(buildDocTree(entries, new Map()).map((n) => n.path)).toEqual(['alpha.md', 'zebra.md'])
+  })
+
   it('handles multi-level nesting', () => {
     const entries: RawEntry[] = [
       { path: 'guides', kind: 'directory' },

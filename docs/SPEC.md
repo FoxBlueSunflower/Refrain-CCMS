@@ -49,9 +49,11 @@ my-docs/                          ← user picks/creates this folder
 │   └── guides/
 │       ├── _folder.json          ← optional: folder title/order
 │       └── installation.md
-├── snippets/                     ← reusable blocks (flat, org-wide by nature)
-│   ├── warning-banner.md
-│   └── support-contact.md
+├── snippets/                     ← reusable blocks, org-wide by nature; may be
+│   ├── warning-banner.md            organized into folders for tidiness —
+│   ├── support-contact.md           {{> name}} always resolves by filename
+│   └── legal/                       stem, workspace-wide-unique, regardless
+│       └── _folder.json             of which folder it lives in
 ├── publish/                      ← generated site (safe to delete; rebuilt anytime)
 └── .app/                         ← app-managed; rebuildable except history/
     ├── index.json                ← where-used cache (disposable; rebuilt by scan)
@@ -126,9 +128,16 @@ forked_from_snapshot: null # history timestamp it was copied at
 
 **Syntax rules (one mental model: curly braces = dynamic):**
 - `{{key}}` → variable substitution at publish
-- `{{> name}}` → snippet transclusion (live: always current content; snippets may contain variables; one level of snippet-in-snippet allowed, deeper is refused with a friendly error — Deming cap)
+- `{{> name}}` → snippet transclusion (live: always current content; snippets may contain variables; one level of snippet-in-snippet allowed, deeper is refused with a friendly error — Deming cap). Resolves by filename stem only — the snippet's folder location never affects this, so snippet names must stay unique across the whole workspace, not just within a folder
 - `:::when dimension=value ... :::` → block included only when the active publish profile contains that value; dimensions and values are user-defined in conditions.json (Edit conditions panel) — any tag not defined there is a build warning, block excluded
 - Frontmatter `when: audience=internal` → conditions applied to a whole page
+
+**Ordering in the sidebar:** folders are titled/ordered via `_folder.json`
+(`{title, order}`); individual documents and snippets order themselves
+*within* their folder via the frontmatter `order` field shown above — both
+are self-describing metadata living inside the entry itself, so there's no
+separate index file to keep in sync. Both are also draggable in the sidebar
+to reorder, or to move a document/snippet into a different folder.
 
 **.app/index.json** (rebuildable cache — where-used in file form)
 ```json
@@ -160,7 +169,7 @@ forked_from_snapshot: null # history timestamp it was copied at
 |---|---|---|
 | workspace | organization + project | One workspace → one org with one project |
 | docs/ tree | document rows | Folder nesting → parent_document_id; `order` → sort_order; frontmatter → columns |
-| snippets/*.md | snippet rows | `forked_from` → forked_from_snippet_id (resolved by name) |
+| snippets/*.md | snippet rows | `forked_from` → forked_from_snippet_id (resolved by name); folder nesting → parent_snippet_id (organizational only — does not affect the snippet's name/identity) |
 | variables.json | variable rows | project_id null (org-wide) |
 | conditions.json | condition_tag rows | dimension column maps directly |
 | .app/index.json | document_snippet / document_variable / document_condition | Or simply rebuilt server-side on import |
