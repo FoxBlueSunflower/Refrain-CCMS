@@ -1,0 +1,115 @@
+import { describe, expect, it } from 'vitest'
+import { buildSampleWorkspaceFiles } from '../workspace/sample-workspace'
+import { buildWorkspaceIndex } from './build'
+import type { IndexDocument, IndexSnippet } from './types'
+
+const BUILT_AT = '2026-07-09T00:00:00.000Z'
+
+function doc(path: string, text: string): IndexDocument {
+  return { path, text }
+}
+
+function snippet(name: string, text: string): IndexSnippet {
+  return { name, text }
+}
+
+describe('buildWorkspaceIndex', () => {
+  it('indexes a direct variable reference', () => {
+    const index = buildWorkspaceIndex({ documents: [doc('docs/a.md', 'Hi {{product_name}}.')], snippets: [] }, BUILT_AT)
+    expect(index.builtAt).toBe(BUILT_AT)
+    expect(index.variables).toEqual({ product_name: ['docs/a.md'] })
+  })
+
+  it('indexes a direct snippet transclusion', () => {
+    const index = buildWorkspaceIndex(
+      { documents: [doc('docs/a.md', '{{> warning-banner}}')], snippets: [snippet('warning-banner', 'Careful.')] },
+      BUILT_AT,
+    )
+    expect(index.snippets).toEqual({ 'warning-banner': ['docs/a.md'] })
+  })
+
+  it('picks up a variable used only inside a transcluded snippet (one level)', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [doc('docs/a.md', '{{> support-contact}}')],
+        snippets: [snippet('support-contact', 'Email {{support_email}}.')],
+      },
+      BUILT_AT,
+    )
+    expect(index.variables).toEqual({ support_email: ['docs/a.md'] })
+    expect(index.snippets).toEqual({ 'support-contact': ['docs/a.md'] })
+  })
+
+  it('picks up a variable two snippet levels deep, matching the resolver depth cap', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [doc('docs/a.md', '{{> outer}}')],
+        snippets: [snippet('outer', '{{> inner}}'), snippet('inner', 'Version {{version}}.')],
+      },
+      BUILT_AT,
+    )
+    expect(index.variables).toEqual({ version: ['docs/a.md'] })
+    expect(index.snippets).toEqual({ outer: ['docs/a.md'], inner: ['docs/a.md'] })
+  })
+
+  it('does not expand a third snippet level, matching MAX_SNIPPET_DEPTH in resolve.ts', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [doc('docs/a.md', '{{> a}}')],
+        snippets: [snippet('a', '{{> b}}'), snippet('b', '{{> c}}'), snippet('c', 'Too deep {{deep_var}}.')],
+      },
+      BUILT_AT,
+    )
+    expect(index.snippets).toEqual({ a: ['docs/a.md'], b: ['docs/a.md'] })
+    expect(index.snippets.c).toBeUndefined()
+    expect(index.variables.deep_var).toBeUndefined()
+  })
+
+  it('ignores a reference to a missing snippet without crashing or fabricating an entry', () => {
+    const index = buildWorkspaceIndex({ documents: [doc('docs/a.md', '{{> ghost}}')], snippets: [] }, BUILT_AT)
+    expect(index.snippets).toEqual({ ghost: ['docs/a.md'] })
+    expect(Object.keys(index.variables)).toEqual([])
+  })
+
+  it('terminates on a circular snippet include instead of looping forever', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [doc('docs/a.md', '{{> a}}')],
+        snippets: [snippet('a', '{{> b}}'), snippet('b', '{{> a}}')],
+      },
+      BUILT_AT,
+    )
+    expect(index.snippets).toEqual({ a: ['docs/a.md'], b: ['docs/a.md'] })
+  })
+
+  it('indexes a condition block', () => {
+    const index = buildWorkspaceIndex(
+      { documents: [doc('docs/a.md', ':::when audience=internal\nSecret.\n:::')], snippets: [] },
+      BUILT_AT,
+    )
+    expect(index.conditions).toEqual({ 'audience=internal': ['docs/a.md'] })
+  })
+
+  it('matches the sample workspace: counts reflect direct and snippet-transitive usage', () => {
+    const files = buildSampleWorkspaceFiles()
+    const documents = files
+      .filter((f) => f.path.startsWith('docs/') && f.path.endsWith('.md'))
+      .map((f) => doc(f.path, f.contents))
+    const snippets = files
+      .filter((f) => f.path.startsWith('snippets/') && f.path.endsWith('.md'))
+      .map((f) => snippet(f.path.slice('snippets/'.length, -'.md'.length), f.contents))
+
+    const index = buildWorkspaceIndex({ documents, snippets }, BUILT_AT)
+
+    expect(index.variables.product_name).toEqual(
+      ['docs/getting-started.md', 'docs/guides/installation.md', 'docs/index.md'].sort(),
+    )
+    expect(index.variables.support_email).toEqual(
+      ['docs/getting-started.md', 'docs/guides/installation.md', 'docs/index.md'].sort(),
+    )
+    expect(index.variables.version).toEqual(['docs/getting-started.md', 'docs/guides/installation.md'].sort())
+    expect(index.snippets['warning-banner']).toEqual(['docs/guides/installation.md'])
+    expect(index.snippets['support-contact']).toEqual(['docs/getting-started.md', 'docs/index.md'].sort())
+    expect(index.conditions['audience=internal']).toEqual(['docs/guides/installation.md'])
+  })
+})

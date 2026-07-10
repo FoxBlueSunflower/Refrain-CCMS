@@ -51,9 +51,9 @@ src/core/indexer: scan workspace → map of snippet/variable/condition →
 documents (write .app/index.json); Where-Used panel: pick a snippet or
 variable, see every document using it, click to open; rebuild on save.
 **Accept when:**
-- [ ] Panel counts match reality on the sample workspace
-- [ ] Edits update the index without full-app refresh
-- [ ] Deleting .app/index.json self-heals on next launch (cache, not truth)
+- [x] Panel counts match reality on the sample workspace
+- [x] Edits update the index without full-app refresh
+- [x] Deleting .app/index.json self-heals on next launch (cache, not truth)
 
 ## PHASE 5 — Conditions + Publish
 Parse :::when dimension=value blocks; publish profiles from workspace.json;
