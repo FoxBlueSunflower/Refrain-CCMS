@@ -4,6 +4,7 @@ import { readDocTree, readSnippetList } from '../../fs'
 
 interface SidebarProps {
   handle: FileSystemDirectoryHandle
+  onOpenWhereUsed?: () => void
   onNewDocument?: () => void
   onSelectDocument?: (path: string) => void
   onRenameDocument?: (path: string) => void
@@ -46,6 +47,7 @@ function useTree(
 
 export function Sidebar({
   handle,
+  onOpenWhereUsed,
   onNewDocument,
   onSelectDocument,
   onRenameDocument,
@@ -62,9 +64,22 @@ export function Sidebar({
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-gray-700 bg-gray-800 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-400">{handle.name}</h2>
+        {onOpenWhereUsed && (
+          <button
+            type="button"
+            className="shrink-0 rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
+            onClick={onOpenWhereUsed}
+          >
+            Where-used
+          </button>
+        )}
+      </div>
+
       <div>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-400">{handle.name}</h2>
+          <h2 className="truncate text-xs font-semibold uppercase tracking-wide text-gray-400">Documents</h2>
           {onNewDocument && (
             <button
               type="button"

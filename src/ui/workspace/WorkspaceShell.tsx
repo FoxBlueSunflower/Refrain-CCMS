@@ -1,15 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
+import { buildWorkspaceIndex } from '../../core/indexer/build'
+import type { WorkspaceIndex } from '../../core/indexer/types'
 import type { SnippetSource } from '../../core/resolver/types'
+import { APP_DIR } from '../../core/workspace/constants'
 import { slugify, withMdExtension } from '../../core/workspace/paths'
 import type { VariablesFile } from '../../core/workspace/types'
-import { deleteEntry, pathExists, readAllSnippets, readTextFile, readVariablesFile, renameFile, writeTextFile } from '../../fs'
+import {
+  deleteEntry,
+  pathExists,
+  readAllDocuments,
+  readAllSnippets,
+  readTextFile,
+  readVariablesFile,
+  renameFile,
+  writeTextFile,
+} from '../../fs'
 import { EditorPane, type SaveStatus } from '../editor/EditorPane'
 import type { CompletionItem } from '../editor/completions'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DocumentTitleDialog } from './NewDocumentDialog'
 import { Sidebar } from './Sidebar'
 import { VariablesEditor, type VariablesEditorHandle } from './VariablesEditor'
+import { WhereUsedPanel } from './WhereUsedPanel'
 
 interface WorkspaceShellProps {
   handle: FileSystemDirectoryHandle
@@ -82,6 +95,8 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
 
   const [variables, setVariables] = useState<VariablesFile>({})
   const [snippets, setSnippets] = useState<SnippetSource>({})
+  const [index, setIndex] = useState<WorkspaceIndex>({ builtAt: '', snippets: {}, variables: {}, conditions: {} })
+  const [whereUsedOpen, setWhereUsedOpen] = useState(false)
 
   const [showVariables, setShowVariables] = useState(false)
   const [variablesOpened, setVariablesOpened] = useState(false)
@@ -98,10 +113,24 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const bump = () => setRefreshToken((t) => t + 1)
 
   const reloadResolverData = useCallback(async () => {
-    const [nextVariables, nextSnippets] = await Promise.all([readVariablesFile(handle), readAllSnippets(handle)])
+    const [nextVariables, nextSnippets, nextDocuments] = await Promise.all([
+      readVariablesFile(handle),
+      readAllSnippets(handle),
+      readAllDocuments(handle),
+    ])
     setVariables(nextVariables)
     setSnippets(nextSnippets)
     setVariablesLoaded(true)
+
+    const nextIndex = buildWorkspaceIndex({
+      documents: nextDocuments,
+      snippets: Object.entries(nextSnippets).map(([name, text]) => ({ name, text })),
+    })
+    setIndex(nextIndex)
+    // .app/index.json is a disposable cache (see SPEC.md) — always rebuilt
+    // from the files on disk, never read back, so a missing/deleted file
+    // self-heals on the next reload with no special-casing here.
+    void writeTextFile(handle, `${APP_DIR}/index.json`, `${JSON.stringify(nextIndex, null, 2)}\n`)
   }, [handle])
 
   useEffect(() => {
@@ -305,6 +334,7 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
       <Sidebar
         handle={handle}
         refreshToken={refreshToken}
+        onOpenWhereUsed={() => setWhereUsedOpen(true)}
         onNewDocument={() => setModal({ kind: 'new', entryKind: 'document' })}
         onSelectDocument={(path) => void openEntry('document', path)}
         onRenameDocument={(path) => setModal({ kind: 'rename', entryKind: 'document', path })}
@@ -382,6 +412,19 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           confirmLabel="Delete"
           onConfirm={() => void handleDelete(modal.entryKind, modal.path)}
           onCancel={() => setModal({ kind: 'none' })}
+        />
+      )}
+
+      {whereUsedOpen && (
+        <WhereUsedPanel
+          variables={variables}
+          snippets={snippets}
+          index={index}
+          onOpenDocument={(docPath) => {
+            setWhereUsedOpen(false)
+            void openEntry('document', docPath.slice(baseDirFor('document').length + 1))
+          }}
+          onClose={() => setWhereUsedOpen(false)}
         />
       )}
     </div>
