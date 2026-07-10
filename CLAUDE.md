@@ -42,7 +42,7 @@ When SPEC.md and any instruction conflict, ask the user; SPEC.md usually wins.
 ## Syntax (fixed; do not invent alternatives)
 - {{key}} = variable · {{> name}} = snippet include (max 1 level of nesting)
 - :::when dimension=value ... ::: = conditional block
-- Condition dimensions are ONLY 'audience' and 'output' — hard cap, on purpose
+- Condition dimensions are fully user-defined (Edit conditions panel writes conditions.json) — no fixed set; "audience"/"output" are just the sample workspace's starting dimensions, not a format constraint
 
 ## Terminology (use these exact words in UI and code)
 workspace · document · snippet · variable · condition · publish profile ·

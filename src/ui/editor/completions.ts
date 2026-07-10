@@ -1,5 +1,4 @@
 import { type Completion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
-import { CONDITION_DIMENSIONS } from '../../core/workspace/constants'
 import type { ConditionsFile } from '../../core/workspace/types'
 
 export interface CompletionItem {
@@ -52,7 +51,7 @@ export function createTokenCompletionSource(getItems: () => TokenCompletionItems
   }
 }
 
-const CONDITION_VALUE_PATTERN = /:::when\s+(audience|output)=([A-Za-z0-9_-]*)$/
+const CONDITION_VALUE_PATTERN = /:::when\s+([A-Za-z0-9_-]+)=([A-Za-z0-9_-]*)$/
 const CONDITION_DIMENSION_PATTERN = /:::when\s+([A-Za-z0-9_-]*)$/
 
 /**
@@ -69,7 +68,7 @@ export function createConditionCompletionSource(getConditions: () => ConditionsF
     if (valueMatch) {
       const [, dimension, partial] = valueMatch
       const conditions = getConditions()
-      const values = conditions[dimension as keyof ConditionsFile] ?? []
+      const values = conditions[dimension] ?? []
       const from = context.pos - partial.length
       const options: Completion[] = values.map((value) => ({ label: value, type: 'constant' }))
       if (options.length === 0) return null
@@ -80,11 +79,12 @@ export function createConditionCompletionSource(getConditions: () => ConditionsF
     if (dimensionMatch) {
       const [, partial] = dimensionMatch
       const from = context.pos - partial.length
-      const options: Completion[] = CONDITION_DIMENSIONS.map((dimension) => ({
+      const options: Completion[] = Object.keys(getConditions()).map((dimension) => ({
         label: dimension,
         apply: `${dimension}=`,
         type: 'keyword',
       }))
+      if (options.length === 0) return null
       return { from, options, validFor: /^[\w-]*$/ }
     }
 

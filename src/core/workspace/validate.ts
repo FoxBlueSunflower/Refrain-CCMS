@@ -1,4 +1,4 @@
-import { CONDITION_DIMENSIONS, CURRENT_FORMAT_VERSION } from './constants'
+import { CURRENT_FORMAT_VERSION } from './constants'
 import type { ConditionsFile, PublishProfile, VariablesFile, WorkspaceConfig } from './types'
 
 export type ValidationResult<T> =
@@ -18,15 +18,15 @@ function validatePublishProfile(name: string, value: unknown, errors: string[]):
     errors.push(`publishProfiles.${name} must be an object`)
     return undefined
   }
-  if (!isStringArray(value.audience)) {
-    errors.push(`publishProfiles.${name}.audience must be an array of strings`)
-    return undefined
+  const profile: PublishProfile = {}
+  for (const [dimension, values] of Object.entries(value)) {
+    if (!isStringArray(values)) {
+      errors.push(`publishProfiles.${name}.${dimension} must be an array of strings`)
+      return undefined
+    }
+    profile[dimension] = values
   }
-  if (!isStringArray(value.output)) {
-    errors.push(`publishProfiles.${name}.output must be an array of strings`)
-    return undefined
-  }
-  return { audience: value.audience, output: value.output }
+  return profile
 }
 
 export function validateWorkspaceConfig(json: unknown): ValidationResult<WorkspaceConfig> {
@@ -119,34 +119,22 @@ export function validateVariablesFile(json: unknown): ValidationResult<Variables
 
 export function validateConditionsFile(json: unknown): ValidationResult<ConditionsFile> {
   const errors: string[] = []
-  const warnings: string[] = []
 
   if (!isPlainObject(json)) {
     return { ok: false, errors: ['conditions.json must be a JSON object'] }
   }
 
-  if (!isStringArray(json.audience)) {
-    errors.push('conditions.json: "audience" must be an array of strings')
-  }
-  if (!isStringArray(json.output)) {
-    errors.push('conditions.json: "output" must be an array of strings')
-  }
-
-  const extraDimensions = Object.keys(json).filter(
-    (key) => !(CONDITION_DIMENSIONS as readonly string[]).includes(key),
-  )
-  if (extraDimensions.length > 0) {
-    warnings.push(
-      `conditions.json: unrecognized dimension(s) ${extraDimensions.join(', ')} — only "audience" and "output" are supported`,
-    )
+  const value: ConditionsFile = {}
+  for (const [dimension, values] of Object.entries(json)) {
+    if (!isStringArray(values)) {
+      errors.push(`conditions.json: "${dimension}" must be an array of strings`)
+      continue
+    }
+    value[dimension] = values
   }
 
   if (errors.length > 0) {
     return { ok: false, errors }
   }
-  return {
-    ok: true,
-    value: { audience: json.audience as string[], output: json.output as string[] },
-    warnings,
-  }
+  return { ok: true, value, warnings: [] }
 }

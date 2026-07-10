@@ -1,4 +1,3 @@
-import { CONDITION_DIMENSIONS } from '../workspace/constants'
 import type { ConditionsFile, PublishProfile } from '../workspace/types'
 import type { BuildWarning } from './types'
 
@@ -60,8 +59,8 @@ export function filterConditions(
       continue
     }
 
-    const isKnownDimension = (CONDITION_DIMENSIONS as readonly string[]).includes(dimension)
-    const knownValues = isKnownDimension ? conditionsFile[dimension as keyof ConditionsFile] : undefined
+    const isKnownDimension = dimension in conditionsFile
+    const knownValues = isKnownDimension ? conditionsFile[dimension] : undefined
     const isKnownValue = knownValues?.includes(value) ?? false
 
     if (!isKnownDimension) {
@@ -69,7 +68,7 @@ export function filterConditions(
         type: 'unknown-condition-dimension',
         file: filePath,
         line: openLine,
-        message: `Unknown condition dimension "${dimension}" — only "audience" and "output" are supported. Block excluded from the published output.`,
+        message: `Unknown condition dimension "${dimension}" — it is not defined in conditions.json. Block excluded from the published output.`,
       })
     } else if (!isKnownValue) {
       warnings.push({
@@ -78,7 +77,7 @@ export function filterConditions(
         line: openLine,
         message: `Unknown value "${value}" for condition dimension "${dimension}" — it is not listed in conditions.json. Block excluded from the published output.`,
       })
-    } else if (profile[dimension as keyof PublishProfile].includes(value)) {
+    } else if ((profile[dimension] ?? []).includes(value)) {
       for (let k = i + 1; k < closeIndex; k++) output.push(lines[k])
     }
     // Recognized tag not in the active profile: excluded silently — this is ordinary profile filtering, not an error.

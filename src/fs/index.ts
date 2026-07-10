@@ -21,4 +21,11 @@ export {
   requestPermission,
   saveWorkspaceHandle,
 } from './workspace-handle'
-export { createSampleWorkspace, looksLikeWorkspace, readConditionsFile, readWorkspaceConfig } from './workspace-bootstrap'
+export {
+  createSampleWorkspace,
+  looksLikeWorkspace,
+  readConditionsFile,
+  readWorkspaceConfig,
+  writeConditionsFile,
+  writeWorkspaceConfig,
+} from './workspace-bootstrap'

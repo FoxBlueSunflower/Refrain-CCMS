@@ -1,7 +1,5 @@
-export interface PublishProfile {
-  audience: string[]
-  output: string[]
-}
+/** Dimension name -> selected values for that dimension. Dimensions are fully user-defined, not a fixed set. */
+export type PublishProfile = Record<string, string[]>
 
 export interface WorkspaceConfig {
   name: string
@@ -20,10 +18,8 @@ export interface VariableEntry {
 
 export type VariablesFile = Record<string, VariableEntry>
 
-export interface ConditionsFile {
-  audience: string[]
-  output: string[]
-}
+/** Dimension name -> the values it allows. Dimensions are fully user-defined, not a fixed set. */
+export type ConditionsFile = Record<string, string[]>
 
 export interface FolderMeta {
   title?: string

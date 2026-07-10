@@ -9,5 +9,3 @@ export const CONDITIONS_FILE = 'conditions.json'
 export const FOLDER_META_FILE = '_folder.json'
 
 export const CURRENT_FORMAT_VERSION = 1
-
-export const CONDITION_DIMENSIONS = ['audience', 'output'] as const

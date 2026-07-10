@@ -1,10 +1,10 @@
-import { VARIABLE_KEY_CHARS } from '../workspace/variable-keys'
+import { IDENTIFIER_CHARS } from '../workspace/identifier-keys'
 
 /** Matches {{key}} and {{> name}} — the same token shape resolve.ts substitutes/transcludes. */
-const TOKEN_PATTERN = new RegExp(`\\{\\{(>)?\\s*([${VARIABLE_KEY_CHARS}]+)\\s*\\}\\}`, 'g')
+const TOKEN_PATTERN = new RegExp(`\\{\\{(>)?\\s*([${IDENTIFIER_CHARS}]+)\\s*\\}\\}`, 'g')
 
-/** Matches ":::when dimension=value" fenced condition blocks. */
-const CONDITION_PATTERN = /:::when\s+(audience|output)=([A-Za-z0-9_-]+)/g
+/** Matches ":::when dimension=value" fenced condition blocks. Dimensions are user-defined, not a fixed set. */
+const CONDITION_PATTERN = new RegExp(`:::when\\s+([${IDENTIFIER_CHARS}]+)=([${IDENTIFIER_CHARS}]+)`, 'g')
 
 export interface ScannedRefs {
   variables: Set<string>

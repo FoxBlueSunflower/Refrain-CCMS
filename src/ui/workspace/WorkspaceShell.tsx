@@ -23,8 +23,10 @@ import {
 } from '../../fs'
 import { EditorPane, type SaveStatus } from '../editor/EditorPane'
 import type { CompletionItem } from '../editor/completions'
+import { ConditionsEditor, type ConditionsEditorHandle } from './ConditionsEditor'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DocumentTitleDialog } from './NewDocumentDialog'
+import { ProfilesEditor, type ProfilesEditorHandle } from './ProfilesEditor'
 import { PublishPanel, type PublishResultSummary } from './PublishPanel'
 import { Sidebar } from './Sidebar'
 import { VariablesEditor, type VariablesEditorHandle } from './VariablesEditor'
@@ -35,6 +37,8 @@ interface WorkspaceShellProps {
 }
 
 type EntryKind = 'document' | 'snippet'
+
+type Pane = 'document' | 'variables' | 'conditions' | 'profiles'
 
 type ModalState =
   | { kind: 'none' }
@@ -104,19 +108,19 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const [index, setIndex] = useState<WorkspaceIndex>({ builtAt: '', snippets: {}, variables: {}, conditions: {} })
   const [whereUsedOpen, setWhereUsedOpen] = useState(false)
 
-  const [conditionsFile, setConditionsFile] = useState<ConditionsFile>({ audience: [], output: [] })
+  const [conditionsFile, setConditionsFile] = useState<ConditionsFile>({})
 
   const [publishOpen, setPublishOpen] = useState(false)
   const [workspaceConfig, setWorkspaceConfig] = useState<WorkspaceConfig | null>(null)
-  const [workspaceConfigLoaded, setWorkspaceConfigLoaded] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [publishResult, setPublishResult] = useState<PublishResultSummary | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
 
-  const [showVariables, setShowVariables] = useState(false)
-  const [variablesOpened, setVariablesOpened] = useState(false)
-  const [variablesLoaded, setVariablesLoaded] = useState(false)
+  const [activePane, setActivePane] = useState<Pane>('document')
+  const [openedPanes, setOpenedPanes] = useState<Set<Exclude<Pane, 'document'>>>(new Set())
   const variablesEditorRef = useRef<VariablesEditorHandle | null>(null)
+  const conditionsEditorRef = useRef<ConditionsEditorHandle | null>(null)
+  const profilesEditorRef = useRef<ProfilesEditorHandle | null>(null)
 
   // Updated synchronously (never via a lagging effect) so async timers and
   // handlers always see the latest edited text and active file — this is
@@ -128,16 +132,17 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const bump = () => setRefreshToken((t) => t + 1)
 
   const reloadResolverData = useCallback(async () => {
-    const [nextVariables, nextSnippets, nextDocuments, nextConditionsFile] = await Promise.all([
+    const [nextVariables, nextSnippets, nextDocuments, nextConditionsFile, workspaceConfigResult] = await Promise.all([
       readVariablesFile(handle),
       readAllSnippets(handle),
       readAllDocuments(handle),
       readConditionsFile(handle),
+      readWorkspaceConfig(handle),
     ])
     setVariables(nextVariables)
     setSnippets(nextSnippets)
     setConditionsFile(nextConditionsFile)
-    setVariablesLoaded(true)
+    setWorkspaceConfig(workspaceConfigResult.ok ? workspaceConfigResult.value : null)
 
     const nextIndex = buildWorkspaceIndex({
       documents: nextDocuments,
@@ -202,13 +207,25 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
     }
   }, [performSave])
 
+  // Flushes the document editor plus every side-pane's pending autosave —
+  // called before switching to any pane (including the one already active,
+  // which is a safe no-op per attemptSave's own dirty check).
+  const flushAllPanes = useCallback(async () => {
+    await Promise.all([
+      flushPendingSave(),
+      variablesEditorRef.current?.flushSave() ?? Promise.resolve(),
+      conditionsEditorRef.current?.flushSave() ?? Promise.resolve(),
+      profilesEditorRef.current?.flushSave() ?? Promise.resolve(),
+    ])
+  }, [flushPendingSave])
+
   const openEntry = useCallback(
     async (kind: EntryKind, relPath: string) => {
       const fullPath = `${baseDirFor(kind)}/${relPath}`
-      if (activeRef.current?.fullPath === fullPath && !showVariables) return
+      if (activeRef.current?.fullPath === fullPath && activePane === 'document') return
 
-      await Promise.all([flushPendingSave(), variablesEditorRef.current?.flushSave() ?? Promise.resolve()])
-      setShowVariables(false)
+      await flushAllPanes()
+      setActivePane('document')
       setOpenError(null)
       try {
         const text = await readTextFile(handle, fullPath)
@@ -224,23 +241,30 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         setOpenError(err instanceof Error ? err.message : String(err))
       }
     },
-    [handle, flushPendingSave, showVariables],
+    [handle, flushAllPanes, activePane],
   )
 
   const openVariablesEditor = useCallback(async () => {
-    await flushPendingSave()
-    setVariablesOpened(true)
-    setShowVariables(true)
-  }, [flushPendingSave])
+    await flushAllPanes()
+    setOpenedPanes((prev) => new Set(prev).add('variables'))
+    setActivePane('variables')
+  }, [flushAllPanes])
 
-  const openPublishPanel = useCallback(async () => {
+  const openConditionsEditor = useCallback(async () => {
+    await flushAllPanes()
+    setOpenedPanes((prev) => new Set(prev).add('conditions'))
+    setActivePane('conditions')
+  }, [flushAllPanes])
+
+  const openProfilesEditor = useCallback(async () => {
+    await flushAllPanes()
+    setOpenedPanes((prev) => new Set(prev).add('profiles'))
+    setActivePane('profiles')
+  }, [flushAllPanes])
+
+  const openPublishPanel = useCallback(() => {
     setPublishOpen(true)
-    if (!workspaceConfigLoaded) {
-      const configResult = await readWorkspaceConfig(handle)
-      setWorkspaceConfig(configResult.ok ? configResult.value : null)
-      setWorkspaceConfigLoaded(true)
-    }
-  }, [handle, workspaceConfigLoaded])
+  }, [])
 
   const handlePublish = useCallback(
     async (profileName: string) => {
@@ -392,7 +416,7 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         handle={handle}
         refreshToken={refreshToken}
         onOpenWhereUsed={() => setWhereUsedOpen(true)}
-        onOpenPublish={() => void openPublishPanel()}
+        onOpenPublish={openPublishPanel}
         onNewDocument={() => setModal({ kind: 'new', entryKind: 'document' })}
         onSelectDocument={(path) => void openEntry('document', path)}
         onRenameDocument={(path) => setModal({ kind: 'rename', entryKind: 'document', path })}
@@ -402,23 +426,49 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         onRenameSnippet={(path) => setModal({ kind: 'rename', entryKind: 'snippet', path })}
         onDeleteSnippet={(path) => setModal({ kind: 'delete', entryKind: 'snippet', path })}
         onOpenVariables={() => void openVariablesEditor()}
+        onOpenConditions={() => void openConditionsEditor()}
+        onOpenProfiles={() => void openProfilesEditor()}
       />
       <div className="flex min-h-0 flex-1 flex-col">
-        {variablesOpened && (
-          <div className={showVariables ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
-            {variablesLoaded ? (
-              <VariablesEditor
-                ref={variablesEditorRef}
+        {openedPanes.has('variables') && (
+          <div className={activePane === 'variables' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+            <VariablesEditor
+              ref={variablesEditorRef}
+              handle={handle}
+              initialVariables={variables}
+              onSaved={reloadResolverData}
+            />
+          </div>
+        )}
+        {openedPanes.has('conditions') && (
+          <div className={activePane === 'conditions' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+            <ConditionsEditor
+              ref={conditionsEditorRef}
+              handle={handle}
+              initialConditions={conditionsFile}
+              onSaved={reloadResolverData}
+            />
+          </div>
+        )}
+        {openedPanes.has('profiles') && (
+          <div className={activePane === 'profiles' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+            {workspaceConfig ? (
+              <ProfilesEditor
+                ref={profilesEditorRef}
                 handle={handle}
-                initialVariables={variables}
+                initialProfiles={workspaceConfig.publishProfiles}
+                conditionsFile={conditionsFile}
+                workspaceConfig={workspaceConfig}
                 onSaved={reloadResolverData}
               />
             ) : (
-              <div className="flex flex-1 items-center justify-center text-sm text-gray-400">Loading variables…</div>
+              <div className="flex flex-1 items-center justify-center text-sm text-gray-400">
+                Couldn't load workspace.json.
+              </div>
             )}
           </div>
         )}
-        {!showVariables &&
+        {activePane === 'document' &&
           (openDoc ? (
             <EditorPane
               key={openDoc.fullPath}

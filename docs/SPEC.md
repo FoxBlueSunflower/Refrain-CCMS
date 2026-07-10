@@ -12,7 +12,7 @@ Distribution: static PWA on GitHub Pages. Data: plain files in a user-chosen fol
 |---|---|---|
 | A2 Snippets | `snippets/` folder; embed with `{{> snippet-name}}`; live-update only | The category-defining feature. Fork-with-lineage kept (frontmatter field) |
 | A3 Variables | `variables.json`; insert `{{key}}`; autocomplete in editor | Cheapest high-value feature in the rubric (+21) |
-| A4 Conditional tags | `:::when audience=internal` fenced blocks; publish profiles choose what's included | The differentiator nothing cheap has. Tags-only cap enforced by the format itself |
+| A4 Conditional tags | `:::when audience=internal` fenced blocks; publish profiles choose what's included | The differentiator nothing cheap has. Dimensions and values are fully user-defined in-app — the format itself just enforces "tags only," no fixed vocabulary |
 | A8 Where-used | Index panel: "warning-banner appears in 7 docs"; click-through; pre-publish impact list | The star screen (+24); locally it's just scanning files — nearly free |
 | A7 Versioning | Automatic timestamped snapshots to `.app/history/` on publish + manual save-points; restore = copy back | Simple snapshot model; users with git get real VCS for free on top |
 | A5 Publish | Client-side build → `publish/` folder of static HTML with sidebar nav + client search | The output that makes it a product, not a notes app |
@@ -42,7 +42,7 @@ A6 PDF: ship a print stylesheet; browser Ctrl+P → Save-as-PDF covers utilitari
 my-docs/                          ← user picks/creates this folder
 ├── workspace.json                ← workspace settings
 ├── variables.json                ← the variable table
-├── conditions.json               ← allowed condition tags (the capped list)
+├── conditions.json               ← user-defined condition dimensions and their values
 ├── docs/                         ← the document tree (folders = sidebar hierarchy)
 │   ├── index.md
 │   ├── getting-started.md
@@ -83,7 +83,7 @@ my-docs/                          ← user picks/creates this folder
 }
 ```
 
-**conditions.json** — the hard cap made physical: two dimensions, editable values
+**conditions.json** — user-defined dimensions and values, editable in-app (Edit conditions panel)
 ```json
 {
   "audience": ["customer", "internal"],
@@ -127,7 +127,7 @@ forked_from_snapshot: null # history timestamp it was copied at
 **Syntax rules (one mental model: curly braces = dynamic):**
 - `{{key}}` → variable substitution at publish
 - `{{> name}}` → snippet transclusion (live: always current content; snippets may contain variables; one level of snippet-in-snippet allowed, deeper is refused with a friendly error — Deming cap)
-- `:::when dimension=value ... :::` → block included only when the active publish profile contains that value; unknown tags = build warning
+- `:::when dimension=value ... :::` → block included only when the active publish profile contains that value; dimensions and values are user-defined in conditions.json (Edit conditions panel) — any tag not defined there is a build warning, block excluded
 - Frontmatter `when: audience=internal` → conditions applied to a whole page
 
 **.app/index.json** (rebuildable cache — where-used in file form)

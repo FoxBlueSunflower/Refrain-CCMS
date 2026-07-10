@@ -7,8 +7,6 @@ import { PreviewPane } from './PreviewPane'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
-const CONDITION_DIMENSION_LIST = ['audience', 'output'] as const
-
 interface EditorPaneProps {
   title: string
   path: string
@@ -64,7 +62,7 @@ export function EditorPane({
   }
 
   const hasItems = completionItems.variables.length > 0 || completionItems.snippets.length > 0
-  const hasConditions = CONDITION_DIMENSION_LIST.some((dimension) => conditionsFile[dimension].length > 0)
+  const hasConditions = Object.values(conditionsFile).some((values) => values.length > 0)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gray-800">
@@ -121,8 +119,8 @@ export function EditorPane({
                   <div>
                     <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Conditions</p>
                     {!hasConditions && <p className="px-2 py-1 text-xs text-gray-400">No condition values yet.</p>}
-                    {CONDITION_DIMENSION_LIST.flatMap((dimension) =>
-                      conditionsFile[dimension].map((value) => (
+                    {Object.entries(conditionsFile).flatMap(([dimension, values]) =>
+                      values.map((value) => (
                         <button
                           key={`${dimension}=${value}`}
                           type="button"
