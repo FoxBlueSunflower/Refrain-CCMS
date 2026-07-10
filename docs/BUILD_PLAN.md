@@ -61,10 +61,10 @@ src/core/builder: resolve + filter per profile → static HTML site into
 publish/ (sidebar nav from folder tree, per-page titles, client-side search,
 print stylesheet for Ctrl+P → PDF); "Publish" button with profile picker.
 **Accept when:**
-- [ ] `internal` profile shows internal blocks; `public` omits them
-- [ ] publish/ opens locally as a working site: nav, search, styling
-- [ ] Unknown condition tag → build warning listing file + line
-- [ ] Ctrl+P on a published page yields a clean printable PDF
+- [x] `internal` profile shows internal blocks; `public` omits them
+- [x] publish/ opens locally as a working site: nav, search, styling
+- [x] Unknown condition tag → build warning listing file + line
+- [x] Ctrl+P on a published page yields a clean printable PDF
 
 ## PHASE 6 — Snapshots & Change Digest
 src/core/snapshots: on publish (and manual save-point), copy docs/,

@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { buildSite } from '../../core/builder/site'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
 import { buildWorkspaceIndex } from '../../core/indexer/build'
 import type { WorkspaceIndex } from '../../core/indexer/types'
 import type { SnippetSource } from '../../core/resolver/types'
-import { APP_DIR } from '../../core/workspace/constants'
+import { APP_DIR, PUBLISH_DIR } from '../../core/workspace/constants'
 import { slugify, withMdExtension } from '../../core/workspace/paths'
-import type { VariablesFile } from '../../core/workspace/types'
+import type { ConditionsFile, VariablesFile, WorkspaceConfig } from '../../core/workspace/types'
 import {
+  clearDirectory,
   deleteEntry,
   pathExists,
   readAllDocuments,
   readAllSnippets,
+  readConditionsFile,
+  readDocTree,
   readTextFile,
   readVariablesFile,
+  readWorkspaceConfig,
   renameFile,
   writeTextFile,
 } from '../../fs'
@@ -20,6 +25,7 @@ import { EditorPane, type SaveStatus } from '../editor/EditorPane'
 import type { CompletionItem } from '../editor/completions'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DocumentTitleDialog } from './NewDocumentDialog'
+import { PublishPanel, type PublishResultSummary } from './PublishPanel'
 import { Sidebar } from './Sidebar'
 import { VariablesEditor, type VariablesEditorHandle } from './VariablesEditor'
 import { WhereUsedPanel } from './WhereUsedPanel'
@@ -97,6 +103,14 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const [snippets, setSnippets] = useState<SnippetSource>({})
   const [index, setIndex] = useState<WorkspaceIndex>({ builtAt: '', snippets: {}, variables: {}, conditions: {} })
   const [whereUsedOpen, setWhereUsedOpen] = useState(false)
+
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [workspaceConfig, setWorkspaceConfig] = useState<WorkspaceConfig | null>(null)
+  const [conditionsFile, setConditionsFile] = useState<ConditionsFile | null>(null)
+  const [publishConfigLoaded, setPublishConfigLoaded] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [publishResult, setPublishResult] = useState<PublishResultSummary | null>(null)
+  const [publishError, setPublishError] = useState<string | null>(null)
 
   const [showVariables, setShowVariables] = useState(false)
   const [variablesOpened, setVariablesOpened] = useState(false)
@@ -215,6 +229,47 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
     setVariablesOpened(true)
     setShowVariables(true)
   }, [flushPendingSave])
+
+  const openPublishPanel = useCallback(async () => {
+    setPublishOpen(true)
+    if (!publishConfigLoaded) {
+      const [configResult, nextConditionsFile] = await Promise.all([readWorkspaceConfig(handle), readConditionsFile(handle)])
+      setWorkspaceConfig(configResult.ok ? configResult.value : null)
+      setConditionsFile(nextConditionsFile)
+      setPublishConfigLoaded(true)
+    }
+  }, [handle, publishConfigLoaded])
+
+  const handlePublish = useCallback(
+    async (profileName: string) => {
+      if (!workspaceConfig || !conditionsFile) return
+      const profile = workspaceConfig.publishProfiles[profileName]
+      if (!profile) return
+
+      setPublishing(true)
+      setPublishError(null)
+      try {
+        const [docs, docTree] = await Promise.all([readAllDocuments(handle), readDocTree(handle)])
+        const result = buildSite({
+          documents: docs,
+          docTree,
+          snippets,
+          variables,
+          conditionsFile,
+          profile,
+          siteTitle: workspaceConfig.site.title,
+        })
+        await clearDirectory(handle, PUBLISH_DIR)
+        await Promise.all(result.files.map((file) => writeTextFile(handle, `${PUBLISH_DIR}/${file.path}`, file.contents)))
+        setPublishResult({ profileName, warnings: result.warnings, pageCount: result.files.length })
+      } catch (err) {
+        setPublishError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setPublishing(false)
+      }
+    },
+    [handle, workspaceConfig, conditionsFile, snippets, variables],
+  )
 
   const handleNavigateFromPreview = useCallback(
     async (relPath: string) => {
@@ -335,6 +390,7 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         handle={handle}
         refreshToken={refreshToken}
         onOpenWhereUsed={() => setWhereUsedOpen(true)}
+        onOpenPublish={() => void openPublishPanel()}
         onNewDocument={() => setModal({ kind: 'new', entryKind: 'document' })}
         onSelectDocument={(path) => void openEntry('document', path)}
         onRenameDocument={(path) => setModal({ kind: 'rename', entryKind: 'document', path })}
@@ -425,6 +481,17 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
             void openEntry('document', docPath.slice(baseDirFor('document').length + 1))
           }}
           onClose={() => setWhereUsedOpen(false)}
+        />
+      )}
+
+      {publishOpen && (
+        <PublishPanel
+          profiles={workspaceConfig?.publishProfiles ?? {}}
+          publishing={publishing}
+          result={publishResult}
+          error={publishError}
+          onPublish={(profileName) => void handlePublish(profileName)}
+          onClose={() => setPublishOpen(false)}
         />
       )}
     </div>
