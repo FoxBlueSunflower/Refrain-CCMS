@@ -568,9 +568,9 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   )
 
   const handleRenameFolder = useCallback(
-    async (path: string, newTitle: string) => {
+    async (entryKind: EntryKind, path: string, newTitle: string) => {
       try {
-        await renameFolder(handle, path, newTitle)
+        await renameFolder(handle, `${baseDirFor(entryKind)}/${path}`, newTitle)
         setModal({ kind: 'none' })
         bump()
       } catch (err) {
@@ -583,7 +583,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   const handleDeleteFolder = useCallback(
     async (entryKind: EntryKind, path: string) => {
       try {
-        await deleteFolder(handle, path)
+        await deleteFolder(handle, `${baseDirFor(entryKind)}/${path}`)
         setCurrentFolder((prev) => (prev[entryKind] === path ? { ...prev, [entryKind]: '' } : prev))
         setModal({ kind: 'none' })
         bump()
@@ -853,7 +853,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           heading="Rename folder"
           submitLabel="Rename"
           initialValue={modal.currentTitle}
-          onSubmit={(title) => void handleRenameFolder(modal.path, title)}
+          onSubmit={(title) => void handleRenameFolder(modal.entryKind, modal.path, title)}
           onCancel={() => setModal({ kind: 'none' })}
         />
       )}
