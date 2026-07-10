@@ -1,6 +1,8 @@
 export type { DirectoryListEntry } from './directory'
 export {
   clearDirectory,
+  copyDirectory,
+  copyFile,
   deleteEntry,
   FsWriteError,
   listDirectory,
@@ -12,6 +14,16 @@ export {
 export { readDocTree, readSnippetList } from './doc-tree'
 export { readAllDocuments } from './index-data'
 export { readAllSnippets, readVariablesFile, writeVariablesFile } from './resolver-data'
+export type { SnapshotSummary } from './snapshots'
+export {
+  appendPublishLogEntry,
+  listSnapshots,
+  readCurrentSnapshotFiles,
+  readPublishLog,
+  readSnapshotFiles,
+  restoreSnapshot,
+  writeSnapshot,
+} from './snapshots'
 export {
   clearStoredWorkspaceHandle,
   getStoredWorkspaceHandle,

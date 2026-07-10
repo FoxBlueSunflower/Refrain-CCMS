@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import type { BuildWarning } from '../../core/builder/types'
+import type { SnapshotDiff } from '../../core/snapshots/types'
 import type { PublishProfile } from '../../core/workspace/types'
 
 export interface PublishResultSummary {
   profileName: string
   warnings: BuildWarning[]
   pageCount: number
+  changes: SnapshotDiff
 }
 
 interface PublishPanelProps {
@@ -86,6 +88,10 @@ export function PublishPanel({ profiles, publishing, result, error, onPublish, o
               <p className="mb-2 text-sm text-gray-200">
                 Published "{result.profileName}" — {result.pageCount} page{result.pageCount === 1 ? '' : 's'} written to
                 publish/. Open publish/index.html locally to view the site.
+              </p>
+              <p className="mb-2 text-xs text-gray-400">
+                {result.changes.added.length} added · {result.changes.updated.length} updated · {result.changes.removed.length}{' '}
+                removed since the last publish.
               </p>
               {result.warnings.length === 0 ? (
                 <p className="text-xs text-gray-400">No warnings.</p>

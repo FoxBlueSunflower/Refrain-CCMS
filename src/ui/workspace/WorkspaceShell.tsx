@@ -4,33 +4,48 @@ import { parseFrontmatter } from '../../core/frontmatter/parse'
 import { buildWorkspaceIndex } from '../../core/indexer/build'
 import type { WorkspaceIndex } from '../../core/indexer/types'
 import type { SnippetSource } from '../../core/resolver/types'
+import { renderChangelog } from '../../core/snapshots/changelog'
+import { diffSnapshotFiles } from '../../core/snapshots/diff'
+import { diffConditions, diffVariables } from '../../core/snapshots/discrepancy'
+import type { ConditionDiscrepancy, PublishLogEntry, VariableDiscrepancy } from '../../core/snapshots/types'
 import { APP_DIR, PUBLISH_DIR } from '../../core/workspace/constants'
 import { slugify, withMdExtension } from '../../core/workspace/paths'
 import type { ConditionsFile, VariablesFile, WorkspaceConfig } from '../../core/workspace/types'
 import {
+  appendPublishLogEntry,
   clearDirectory,
   deleteEntry,
+  listSnapshots,
   pathExists,
   readAllDocuments,
   readAllSnippets,
   readConditionsFile,
+  readCurrentSnapshotFiles,
   readDocTree,
+  readPublishLog,
+  readSnapshotFiles,
   readTextFile,
   readVariablesFile,
   readWorkspaceConfig,
   renameFile,
+  restoreSnapshot,
+  writeSnapshot,
   writeTextFile,
+  type SnapshotSummary,
 } from '../../fs'
 import { EditorPane, type SaveStatus } from '../editor/EditorPane'
 import type { CompletionItem } from '../editor/completions'
 import { ConditionsEditor, type ConditionsEditorHandle } from './ConditionsEditor'
 import { ConfirmDialog } from './ConfirmDialog'
+import { HistoryPanel } from './HistoryPanel'
 import { DocumentTitleDialog } from './NewDocumentDialog'
 import { ProfilesEditor, type ProfilesEditorHandle } from './ProfilesEditor'
 import { PublishPanel, type PublishResultSummary } from './PublishPanel'
 import { Sidebar } from './Sidebar'
 import { VariablesEditor, type VariablesEditorHandle } from './VariablesEditor'
 import { WhereUsedPanel } from './WhereUsedPanel'
+
+const CHANGELOG_FILE = 'CHANGELOG.md'
 
 interface WorkspaceShellProps {
   handle: FileSystemDirectoryHandle
@@ -115,6 +130,17 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const [publishing, setPublishing] = useState(false)
   const [publishResult, setPublishResult] = useState<PublishResultSummary | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
+
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [snapshots, setSnapshots] = useState<SnapshotSummary[]>([])
+  const [publishLog, setPublishLog] = useState<PublishLogEntry[]>([])
+  const [snapshotting, setSnapshotting] = useState(false)
+  const [restoring, setRestoring] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [restoreDiscrepancies, setRestoreDiscrepancies] = useState<{
+    variables: VariableDiscrepancy[]
+    conditions: ConditionDiscrepancy[]
+  } | null>(null)
 
   const [activePane, setActivePane] = useState<Pane>('document')
   const [openedPanes, setOpenedPanes] = useState<Set<Exclude<Pane, 'document'>>>(new Set())
@@ -287,7 +313,19 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         })
         await clearDirectory(handle, PUBLISH_DIR)
         await Promise.all(result.files.map((file) => writeTextFile(handle, `${PUBLISH_DIR}/${file.path}`, file.contents)))
-        setPublishResult({ profileName, warnings: result.warnings, pageCount: result.files.length })
+
+        // Diff against the previous publish's snapshot BEFORE writing the new one.
+        const log = await readPublishLog(handle)
+        const previousEntry = log[log.length - 1]
+        const previousFiles = previousEntry ? await readSnapshotFiles(handle, previousEntry.snapshot) : []
+        const currentFiles = await readCurrentSnapshotFiles(handle)
+        const changes = diffSnapshotFiles(previousFiles, currentFiles)
+        const snapshotName = await writeSnapshot(handle, 'publish')
+        const entry: PublishLogEntry = { at: new Date().toISOString(), profile: profileName, snapshot: snapshotName, changes }
+        await appendPublishLogEntry(handle, entry)
+        await writeTextFile(handle, CHANGELOG_FILE, renderChangelog([...log, entry]))
+
+        setPublishResult({ profileName, warnings: result.warnings, pageCount: result.files.length, changes })
       } catch (err) {
         setPublishError(err instanceof Error ? err.message : String(err))
       } finally {
@@ -295,6 +333,73 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
       }
     },
     [handle, workspaceConfig, conditionsFile, snippets, variables],
+  )
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const [nextSnapshots, nextLog] = await Promise.all([listSnapshots(handle), readPublishLog(handle)])
+      setSnapshots(nextSnapshots)
+      setPublishLog(nextLog)
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : String(err))
+    }
+  }, [handle])
+
+  const openHistoryPanel = useCallback(() => {
+    setHistoryOpen(true)
+    setHistoryError(null)
+    void loadHistory()
+  }, [loadHistory])
+
+  const handleSaveNow = useCallback(async () => {
+    setSnapshotting(true)
+    setHistoryError(null)
+    try {
+      await writeSnapshot(handle, 'manual')
+      await loadHistory()
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSnapshotting(false)
+    }
+  }, [handle, loadHistory])
+
+  const handleRestore = useCallback(
+    async (snapshotName: string) => {
+      setRestoring(true)
+      setHistoryError(null)
+      const beforeVariables = variables
+      const beforeConditions = conditionsFile
+      try {
+        await restoreSnapshot(handle, snapshotName)
+
+        // Files on disk just changed out from under the editor — same
+        // stale-state clearing handleDelete does for a deleted file.
+        if (autosaveTimerRef.current) {
+          clearTimeout(autosaveTimerRef.current)
+          autosaveTimerRef.current = null
+        }
+        activeRef.current = null
+        setOpenDoc(null)
+
+        bump()
+        await loadHistory()
+
+        const [afterVariables, afterConditions] = await Promise.all([
+          readVariablesFile(handle),
+          readConditionsFile(handle),
+        ])
+        setRestoreDiscrepancies({
+          variables: diffVariables(beforeVariables, afterVariables),
+          conditions: diffConditions(beforeConditions, afterConditions),
+        })
+      } catch (err) {
+        setHistoryError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setRestoring(false)
+      }
+    },
+    [handle, variables, conditionsFile, loadHistory],
   )
 
   const handleNavigateFromPreview = useCallback(
@@ -417,6 +522,7 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         refreshToken={refreshToken}
         onOpenWhereUsed={() => setWhereUsedOpen(true)}
         onOpenPublish={openPublishPanel}
+        onOpenHistory={openHistoryPanel}
         onNewDocument={() => setModal({ kind: 'new', entryKind: 'document' })}
         onSelectDocument={(path) => void openEntry('document', path)}
         onRenameDocument={(path) => setModal({ kind: 'rename', entryKind: 'document', path })}
@@ -545,6 +651,23 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           error={publishError}
           onPublish={(profileName) => void handlePublish(profileName)}
           onClose={() => setPublishOpen(false)}
+        />
+      )}
+
+      {historyOpen && (
+        <HistoryPanel
+          snapshots={snapshots}
+          publishLog={publishLog}
+          snapshotting={snapshotting}
+          restoring={restoring}
+          error={historyError}
+          discrepancies={restoreDiscrepancies}
+          onSaveNow={() => void handleSaveNow()}
+          onRestore={(name) => void handleRestore(name)}
+          onClose={() => {
+            setHistoryOpen(false)
+            setRestoreDiscrepancies(null)
+          }}
         />
       )}
     </div>
