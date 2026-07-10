@@ -1,7 +1,43 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type DragEvent } from 'react'
+import { computeReorder } from '../../core/workspace/reorder'
 import type { DocTreeNode } from '../../core/workspace/types'
 import { readDocTree, readSnippetList } from '../../fs'
 import { EmptyState } from '../shared/EmptyState'
+
+type Section = 'document' | 'snippet'
+type NodeKind = 'file' | 'folder'
+
+export interface SiblingEntry {
+  path: string
+  kind: NodeKind
+}
+
+interface DragInfo {
+  section: Section
+  kind: NodeKind
+  path: string
+}
+
+interface DropIndicator {
+  section: Section
+  /** '' means the section's root drop zone (the section header). */
+  path: string
+  position: 'before' | 'after' | 'into'
+}
+
+/**
+ * Moves/reorders a document or snippet. `targetParentPath` is the folder
+ * it should end up in ('' for the section root). `orderedEntries`, when
+ * present, is the desired final sibling order at that parent (including
+ * `sourcePath` at its new position) — omitted for a plain "drop into this
+ * folder" move, which just appends with no explicit order.
+ */
+type DropEntryHandler = (
+  sourcePath: string,
+  sourceKind: NodeKind,
+  targetParentPath: string,
+  orderedEntries?: SiblingEntry[],
+) => void
 
 interface SidebarProps {
   handle: FileSystemDirectoryHandle
@@ -17,6 +53,7 @@ interface SidebarProps {
   onSelectDocumentFolder?: (path: string) => void
   onRenameDocumentFolder?: (path: string, currentTitle: string) => void
   onDeleteDocumentFolder?: (path: string) => void
+  onDropDocumentEntry?: DropEntryHandler
   onNewSnippet?: () => void
   onNewSnippetFolder?: () => void
   onSelectSnippet?: (path: string) => void
@@ -25,6 +62,7 @@ interface SidebarProps {
   onSelectSnippetFolder?: (path: string) => void
   onRenameSnippetFolder?: (path: string, currentTitle: string) => void
   onDeleteSnippetFolder?: (path: string) => void
+  onDropSnippetEntry?: DropEntryHandler
   onOpenVariables?: () => void
   onOpenConditions?: () => void
   onOpenProfiles?: () => void
@@ -75,6 +113,36 @@ function useCollapsedState() {
   return { collapsed, toggle }
 }
 
+function relativeY(event: DragEvent<HTMLElement>): number {
+  const rect = event.currentTarget.getBoundingClientRect()
+  return (event.clientY - rect.top) / rect.height
+}
+
+function computeZone(event: DragEvent<HTMLElement>, allowInto: boolean): 'before' | 'after' | 'into' {
+  const y = relativeY(event)
+  if (allowInto && y > 0.25 && y < 0.75) return 'into'
+  return y < 0.5 ? 'before' : 'after'
+}
+
+/** Builds the desired final sibling order at a drop target, given the pre-move `nodes` list at that level. */
+function buildOrderedEntries(
+  nodes: DocTreeNode[],
+  draggedPath: string,
+  draggedKind: NodeKind,
+  targetIndex: number,
+): SiblingEntry[] {
+  const orderedPaths = computeReorder(
+    nodes.map((n) => n.path),
+    draggedPath,
+    targetIndex,
+  )
+  return orderedPaths.map((path) => {
+    if (path === draggedPath) return { path, kind: draggedKind }
+    const existing = nodes.find((n) => n.path === path)!
+    return { path, kind: existing.kind }
+  })
+}
+
 export function Sidebar({
   handle,
   onOpenWhereUsed,
@@ -89,6 +157,7 @@ export function Sidebar({
   onSelectDocumentFolder,
   onRenameDocumentFolder,
   onDeleteDocumentFolder,
+  onDropDocumentEntry,
   onNewSnippet,
   onNewSnippetFolder,
   onSelectSnippet,
@@ -97,6 +166,7 @@ export function Sidebar({
   onSelectSnippetFolder,
   onRenameSnippetFolder,
   onDeleteSnippetFolder,
+  onDropSnippetEntry,
   onOpenVariables,
   onOpenConditions,
   onOpenProfiles,
@@ -106,6 +176,33 @@ export function Sidebar({
   const snippets = useTree(readSnippetList, handle, refreshToken)
   const docsCollapsed = useCollapsedState()
   const snippetsCollapsed = useCollapsedState()
+
+  const [dragging, setDragging] = useState<DragInfo | null>(null)
+  const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null)
+
+  function endDrag() {
+    setDragging(null)
+    setDropIndicator(null)
+  }
+
+  function handleRootDrop(section: Section, onDrop: DropEntryHandler | undefined) {
+    return (event: DragEvent<HTMLElement>) => {
+      event.preventDefault()
+      if (!dragging || dragging.section !== section) return
+      onDrop?.(dragging.path, dragging.kind, '')
+      endDrag()
+    }
+  }
+
+  function handleRootDragOver(section: Section) {
+    return (event: DragEvent<HTMLElement>) => {
+      if (!dragging || dragging.section !== section) return
+      event.preventDefault()
+      setDropIndicator({ section, path: '', position: 'into' })
+    }
+  }
+
+  const rootIsDropTarget = (section: Section) => dropIndicator?.section === section && dropIndicator.path === ''
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-gray-700 bg-gray-800 p-4">
@@ -155,7 +252,16 @@ export function Sidebar({
 
       <div>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="truncate text-xs font-semibold uppercase tracking-wide text-gray-400">Documents</h2>
+          <h2
+            className={`truncate rounded text-xs font-semibold uppercase tracking-wide text-gray-400 ${
+              rootIsDropTarget('document') ? 'bg-violet-900/40' : ''
+            }`}
+            onDragOver={handleRootDragOver('document')}
+            onDragLeave={() => setDropIndicator((prev) => (prev?.section === 'document' && prev.path === '' ? null : prev))}
+            onDrop={handleRootDrop('document', onDropDocumentEntry)}
+          >
+            Documents
+          </h2>
           <div className="flex shrink-0 items-center gap-1">
             {onNewDocumentFolder && (
               <button
@@ -194,6 +300,8 @@ export function Sidebar({
           <DocTreeList
             nodes={docs.tree}
             depth={0}
+            parentPath=""
+            section="document"
             collapsed={docsCollapsed.collapsed}
             onToggleCollapse={docsCollapsed.toggle}
             onSelectDocument={onSelectDocument}
@@ -202,13 +310,28 @@ export function Sidebar({
             onSelectFolder={onSelectDocumentFolder}
             onRenameFolder={onRenameDocumentFolder}
             onDeleteFolder={onDeleteDocumentFolder}
+            onDropEntry={onDropDocumentEntry}
+            dragging={dragging}
+            setDragging={setDragging}
+            dropIndicator={dropIndicator}
+            setDropIndicator={setDropIndicator}
+            endDrag={endDrag}
           />
         )}
       </div>
 
       <div>
         <div className="mb-1 flex items-center justify-between gap-2">
-          <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-400">Snippets</h2>
+          <h2
+            className={`truncate rounded text-sm font-semibold uppercase tracking-wide text-gray-400 ${
+              rootIsDropTarget('snippet') ? 'bg-violet-900/40' : ''
+            }`}
+            onDragOver={handleRootDragOver('snippet')}
+            onDragLeave={() => setDropIndicator((prev) => (prev?.section === 'snippet' && prev.path === '' ? null : prev))}
+            onDrop={handleRootDrop('snippet', onDropSnippetEntry)}
+          >
+            Snippets
+          </h2>
           <div className="flex shrink-0 items-center gap-1">
             {onNewSnippetFolder && (
               <button
@@ -246,6 +369,8 @@ export function Sidebar({
           <DocTreeList
             nodes={snippets.tree}
             depth={0}
+            parentPath=""
+            section="snippet"
             collapsed={snippetsCollapsed.collapsed}
             onToggleCollapse={snippetsCollapsed.toggle}
             onSelectDocument={onSelectSnippet}
@@ -254,6 +379,12 @@ export function Sidebar({
             onSelectFolder={onSelectSnippetFolder}
             onRenameFolder={onRenameSnippetFolder}
             onDeleteFolder={onDeleteSnippetFolder}
+            onDropEntry={onDropSnippetEntry}
+            dragging={dragging}
+            setDragging={setDragging}
+            dropIndicator={dropIndicator}
+            setDropIndicator={setDropIndicator}
+            endDrag={endDrag}
           />
         )}
       </div>
@@ -303,6 +434,8 @@ export function Sidebar({
 interface DocTreeListProps {
   nodes: DocTreeNode[]
   depth: number
+  parentPath: string
+  section: Section
   collapsed: Set<string>
   onToggleCollapse: (path: string) => void
   onSelectDocument?: (path: string) => void
@@ -311,11 +444,19 @@ interface DocTreeListProps {
   onSelectFolder?: (path: string) => void
   onRenameFolder?: (path: string, currentTitle: string) => void
   onDeleteFolder?: (path: string) => void
+  onDropEntry?: DropEntryHandler
+  dragging: DragInfo | null
+  setDragging: (info: DragInfo | null) => void
+  dropIndicator: DropIndicator | null
+  setDropIndicator: (indicator: DropIndicator | null | ((prev: DropIndicator | null) => DropIndicator | null)) => void
+  endDrag: () => void
 }
 
 function DocTreeList({
   nodes,
   depth,
+  parentPath,
+  section,
   collapsed,
   onToggleCollapse,
   onSelectDocument,
@@ -324,7 +465,54 @@ function DocTreeList({
   onSelectFolder,
   onRenameFolder,
   onDeleteFolder,
+  onDropEntry,
+  dragging,
+  setDragging,
+  dropIndicator,
+  setDropIndicator,
+  endDrag,
 }: DocTreeListProps) {
+  const draggingHere = dragging?.section === section
+
+  function indicatorClassFor(path: string): string {
+    if (dropIndicator?.section !== section || dropIndicator.path !== path) return ''
+    if (dropIndicator.position === 'before') return 'border-t-2 border-violet-400'
+    if (dropIndicator.position === 'after') return 'border-b-2 border-violet-400'
+    return 'bg-violet-900/40'
+  }
+
+  function handleDragOver(node: DocTreeNode, allowInto: boolean) {
+    return (event: DragEvent<HTMLLIElement>) => {
+      if (!draggingHere) return
+      event.preventDefault()
+      const zone = computeZone(event, allowInto)
+      setDropIndicator({ section, path: node.path, position: zone })
+    }
+  }
+
+  function handleDragLeave(node: DocTreeNode) {
+    return () => {
+      setDropIndicator((prev) => (prev?.section === section && prev.path === node.path ? null : prev))
+    }
+  }
+
+  function handleDrop(node: DocTreeNode, allowInto: boolean) {
+    return (event: DragEvent<HTMLLIElement>) => {
+      event.preventDefault()
+      if (!draggingHere || !dragging) return
+      const zone = computeZone(event, allowInto)
+      if (zone === 'into') {
+        onDropEntry?.(dragging.path, dragging.kind, node.path)
+      } else {
+        const index = nodes.findIndex((n) => n.path === node.path)
+        const targetIndex = zone === 'after' ? index + 1 : index
+        const orderedEntries = buildOrderedEntries(nodes, dragging.path, dragging.kind, targetIndex)
+        onDropEntry?.(dragging.path, dragging.kind, parentPath, orderedEntries)
+      }
+      endDrag()
+    }
+  }
+
   return (
     <ul className={depth === 0 ? 'space-y-1' : 'ml-3 space-y-1 border-l border-gray-700 pl-2'}>
       {nodes.map((node) => {
@@ -332,8 +520,22 @@ function DocTreeList({
           const hasChildren = !!node.children && node.children.length > 0
           const isEmpty = !hasChildren
           const isCollapsed = collapsed.has(node.path)
+          const allowInto = draggingHere && dragging?.kind === 'file'
           return (
-            <li key={node.path}>
+            <li
+              key={node.path}
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = 'move'
+                event.dataTransfer.setData('text/plain', node.path)
+                setDragging({ section, kind: 'folder', path: node.path })
+              }}
+              onDragEnd={endDrag}
+              onDragOver={handleDragOver(node, allowInto)}
+              onDragLeave={handleDragLeave(node)}
+              onDrop={handleDrop(node, allowInto)}
+              className={indicatorClassFor(node.path)}
+            >
               <div className="group flex items-center gap-1">
                 <button
                   type="button"
@@ -379,6 +581,8 @@ function DocTreeList({
                 <DocTreeList
                   nodes={node.children!}
                   depth={depth + 1}
+                  parentPath={node.path}
+                  section={section}
                   collapsed={collapsed}
                   onToggleCollapse={onToggleCollapse}
                   onSelectDocument={onSelectDocument}
@@ -387,6 +591,12 @@ function DocTreeList({
                   onSelectFolder={onSelectFolder}
                   onRenameFolder={onRenameFolder}
                   onDeleteFolder={onDeleteFolder}
+                  onDropEntry={onDropEntry}
+                  dragging={dragging}
+                  setDragging={setDragging}
+                  dropIndicator={dropIndicator}
+                  setDropIndicator={setDropIndicator}
+                  endDrag={endDrag}
                 />
               )}
             </li>
@@ -394,7 +604,20 @@ function DocTreeList({
         }
 
         return (
-          <li key={node.path}>
+          <li
+            key={node.path}
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = 'move'
+              event.dataTransfer.setData('text/plain', node.path)
+              setDragging({ section, kind: 'file', path: node.path })
+            }}
+            onDragEnd={endDrag}
+            onDragOver={handleDragOver(node, false)}
+            onDragLeave={handleDragLeave(node)}
+            onDrop={handleDrop(node, false)}
+            className={indicatorClassFor(node.path)}
+          >
             <div className="group flex items-center gap-1">
               <button
                 type="button"

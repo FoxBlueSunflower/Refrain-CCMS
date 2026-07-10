@@ -19,6 +19,8 @@ import {
   deleteFolder,
   directoryExists,
   listSnapshots,
+  moveFile,
+  moveFolder,
   pathExists,
   readAllDocuments,
   readAllSnippets,
@@ -34,6 +36,7 @@ import {
   renameFolder,
   restoreSnapshot,
   snippetStemExists,
+  writeSiblingOrder,
   writeSnapshot,
   writeTextFile,
   type SnapshotSummary,
@@ -51,7 +54,7 @@ import { HistoryPanel } from './HistoryPanel'
 import { DocumentTitleDialog } from './NewDocumentDialog'
 import { ProfilesEditor, type ProfilesEditorHandle } from './ProfilesEditor'
 import { PublishPanel, type PublishResultSummary } from './PublishPanel'
-import { Sidebar } from './Sidebar'
+import { Sidebar, type SiblingEntry } from './Sidebar'
 import { VariablesEditor, type VariablesEditorHandle } from './VariablesEditor'
 import { WhereUsedPanel } from './WhereUsedPanel'
 
@@ -595,6 +598,51 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     setCurrentFolder((prev) => ({ ...prev, [entryKind]: path }))
   }, [])
 
+  const handleDropEntry = useCallback(
+    async (
+      entryKind: EntryKind,
+      sourcePath: string,
+      sourceKind: 'file' | 'folder',
+      targetParentPath: string,
+      orderedEntries?: SiblingEntry[],
+    ) => {
+      try {
+        const baseDir = baseDirFor(entryKind)
+        const sourceFullPath = `${baseDir}/${sourcePath}`
+        const targetFullParent = targetParentPath ? `${baseDir}/${targetParentPath}` : baseDir
+        const currentParent = parentFolderOf(sourcePath)
+
+        let newFullPath = sourceFullPath
+        if (targetParentPath !== currentParent) {
+          newFullPath =
+            sourceKind === 'folder'
+              ? await moveFolder(handle, sourceFullPath, targetFullParent)
+              : await moveFile(handle, sourceFullPath, targetFullParent)
+        }
+
+        if (orderedEntries) {
+          const finalEntries = orderedEntries.map((entry) =>
+            entry.path === sourcePath
+              ? { path: newFullPath, kind: sourceKind }
+              : { path: `${baseDir}/${entry.path}`, kind: entry.kind },
+          )
+          await writeSiblingOrder(handle, finalEntries)
+        }
+
+        if (activeRef.current?.fullPath === sourceFullPath && newFullPath !== sourceFullPath) {
+          const newRelPath = newFullPath.slice(baseDir.length + 1)
+          activeRef.current.fullPath = newFullPath
+          setOpenDoc({ kind: entryKind, relPath: newRelPath, fullPath: newFullPath })
+        }
+        setCurrentFolder((prev) => (prev[entryKind] === sourcePath ? { ...prev, [entryKind]: targetParentPath } : prev))
+        bump()
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      }
+    },
+    [handle, pushToast],
+  )
+
   // TODO(future phase): warn on delete if other docs/snippets link to or embed this file
   const handleDelete = useCallback(
     async (entryKind: EntryKind, relPath: string) => {
@@ -670,6 +718,9 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           setModal({ kind: 'rename-folder', entryKind: 'document', path, currentTitle })
         }
         onDeleteDocumentFolder={(path) => setModal({ kind: 'delete-folder', entryKind: 'document', path })}
+        onDropDocumentEntry={(sourcePath, sourceKind, targetParentPath, orderedEntries) =>
+          void handleDropEntry('document', sourcePath, sourceKind, targetParentPath, orderedEntries)
+        }
         onNewSnippet={() => setModal({ kind: 'new', entryKind: 'snippet' })}
         onNewSnippetFolder={() => setModal({ kind: 'new-folder', entryKind: 'snippet' })}
         onSelectSnippet={(path) => {
@@ -683,6 +734,9 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           setModal({ kind: 'rename-folder', entryKind: 'snippet', path, currentTitle })
         }
         onDeleteSnippetFolder={(path) => setModal({ kind: 'delete-folder', entryKind: 'snippet', path })}
+        onDropSnippetEntry={(sourcePath, sourceKind, targetParentPath, orderedEntries) =>
+          void handleDropEntry('snippet', sourcePath, sourceKind, targetParentPath, orderedEntries)
+        }
         onOpenVariables={() => void openVariablesEditor()}
         onOpenConditions={() => void openConditionsEditor()}
         onOpenProfiles={() => void openProfilesEditor()}
