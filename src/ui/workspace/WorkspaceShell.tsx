@@ -21,6 +21,7 @@ import type { CompletionItem } from '../editor/completions'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DocumentTitleDialog } from './NewDocumentDialog'
 import { Sidebar } from './Sidebar'
+import { VariablesEditor, type VariablesEditorHandle } from './VariablesEditor'
 import { WhereUsedPanel } from './WhereUsedPanel'
 
 interface WorkspaceShellProps {
@@ -97,6 +98,11 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const [index, setIndex] = useState<WorkspaceIndex>({ builtAt: '', snippets: {}, variables: {}, conditions: {} })
   const [whereUsedOpen, setWhereUsedOpen] = useState(false)
 
+  const [showVariables, setShowVariables] = useState(false)
+  const [variablesOpened, setVariablesOpened] = useState(false)
+  const [variablesLoaded, setVariablesLoaded] = useState(false)
+  const variablesEditorRef = useRef<VariablesEditorHandle | null>(null)
+
   // Updated synchronously (never via a lagging effect) so async timers and
   // handlers always see the latest edited text and active file — this is
   // what makes fast file-switching lossless.
@@ -114,6 +120,7 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
     ])
     setVariables(nextVariables)
     setSnippets(nextSnippets)
+    setVariablesLoaded(true)
 
     const nextIndex = buildWorkspaceIndex({
       documents: nextDocuments,
@@ -181,9 +188,10 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const openEntry = useCallback(
     async (kind: EntryKind, relPath: string) => {
       const fullPath = `${baseDirFor(kind)}/${relPath}`
-      if (activeRef.current?.fullPath === fullPath) return
+      if (activeRef.current?.fullPath === fullPath && !showVariables) return
 
-      await flushPendingSave()
+      await Promise.all([flushPendingSave(), variablesEditorRef.current?.flushSave() ?? Promise.resolve()])
+      setShowVariables(false)
       setOpenError(null)
       try {
         const text = await readTextFile(handle, fullPath)
@@ -199,8 +207,14 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         setOpenError(err instanceof Error ? err.message : String(err))
       }
     },
-    [handle, flushPendingSave],
+    [handle, flushPendingSave, showVariables],
   )
+
+  const openVariablesEditor = useCallback(async () => {
+    await flushPendingSave()
+    setVariablesOpened(true)
+    setShowVariables(true)
+  }, [flushPendingSave])
 
   const handleNavigateFromPreview = useCallback(
     async (relPath: string) => {
@@ -329,30 +343,48 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         onSelectSnippet={(path) => void openEntry('snippet', path)}
         onRenameSnippet={(path) => setModal({ kind: 'rename', entryKind: 'snippet', path })}
         onDeleteSnippet={(path) => setModal({ kind: 'delete', entryKind: 'snippet', path })}
+        onOpenVariables={() => void openVariablesEditor()}
       />
-      {openDoc ? (
-        <EditorPane
-          key={openDoc.fullPath}
-          title={titleFromPath(openDoc.relPath)}
-          path={openDoc.fullPath}
-          initialValue={bufferRef.current}
-          liveText={liveText}
-          dirty={dirty}
-          saveStatus={saveStatus}
-          error={openError}
-          currentRelPath={openDoc.kind === 'document' ? openDoc.relPath : null}
-          resolveContext={resolveContext}
-          completionItems={completionItems}
-          onChange={handleBufferChange}
-          onSave={handleExplicitSave}
-          onNavigate={(relPath) => void handleNavigateFromPreview(relPath)}
-        />
-      ) : (
-        <main className="flex flex-1 flex-col items-center justify-center gap-2 bg-gray-900 text-gray-400">
-          <p>Select a document</p>
-          {(error ?? openError) && <p className="max-w-md text-center text-sm text-red-400">{error ?? openError}</p>}
-        </main>
-      )}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {variablesOpened && (
+          <div className={showVariables ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+            {variablesLoaded ? (
+              <VariablesEditor
+                ref={variablesEditorRef}
+                handle={handle}
+                initialVariables={variables}
+                onSaved={reloadResolverData}
+              />
+            ) : (
+              <div className="flex flex-1 items-center justify-center text-sm text-gray-400">Loading variables…</div>
+            )}
+          </div>
+        )}
+        {!showVariables &&
+          (openDoc ? (
+            <EditorPane
+              key={openDoc.fullPath}
+              title={titleFromPath(openDoc.relPath)}
+              path={openDoc.fullPath}
+              initialValue={bufferRef.current}
+              liveText={liveText}
+              dirty={dirty}
+              saveStatus={saveStatus}
+              error={openError}
+              currentRelPath={openDoc.kind === 'document' ? openDoc.relPath : null}
+              resolveContext={resolveContext}
+              completionItems={completionItems}
+              onChange={handleBufferChange}
+              onSave={handleExplicitSave}
+              onNavigate={(relPath) => void handleNavigateFromPreview(relPath)}
+            />
+          ) : (
+            <main className="flex flex-1 flex-col items-center justify-center gap-2 bg-gray-900 text-gray-400">
+              <p>Select a document</p>
+              {(error ?? openError) && <p className="max-w-md text-center text-sm text-red-400">{error ?? openError}</p>}
+            </main>
+          ))}
+      </div>
 
       {modal.kind === 'new' && (
         <DocumentTitleDialog

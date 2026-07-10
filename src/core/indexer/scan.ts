@@ -1,5 +1,7 @@
+import { VARIABLE_KEY_CHARS } from '../workspace/variable-keys'
+
 /** Matches {{key}} and {{> name}} — the same token shape resolve.ts substitutes/transcludes. */
-const TOKEN_PATTERN = /\{\{(>)?\s*([A-Za-z0-9_-]+)\s*\}\}/g
+const TOKEN_PATTERN = new RegExp(`\\{\\{(>)?\\s*([${VARIABLE_KEY_CHARS}]+)\\s*\\}\\}`, 'g')
 
 /** Matches ":::when dimension=value" fenced condition blocks. */
 const CONDITION_PATTERN = /:::when\s+(audience|output)=([A-Za-z0-9_-]+)/g
