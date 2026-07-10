@@ -115,3 +115,44 @@ export async function renameFile(dir: FileSystemDirectoryHandle, oldPath: string
   await writeTextFile(dir, newPath, contents)
   await deleteEntry(dir, oldPath)
 }
+
+export async function copyFile(dir: FileSystemDirectoryHandle, fromPath: string, toPath: string): Promise<void> {
+  const contents = await readTextFile(dir, fromPath)
+  await writeTextFile(dir, toPath, contents)
+}
+
+async function copyDirectoryContents(
+  source: FileSystemDirectoryHandle,
+  destination: FileSystemDirectoryHandle,
+): Promise<void> {
+  for await (const handle of source.values()) {
+    if (handle.kind === 'file') {
+      const file = await (handle as FileSystemFileHandle).getFile()
+      const contents = await file.text()
+      const destFile = await destination.getFileHandle(handle.name, { create: true })
+      const writable = await destFile.createWritable()
+      await writable.write(contents)
+      await writable.close()
+    } else {
+      const destDir = await destination.getDirectoryHandle(handle.name, { create: true })
+      await copyDirectoryContents(handle as FileSystemDirectoryHandle, destDir)
+    }
+  }
+}
+
+/**
+ * Recursively copies every file under `fromPath` into `toPath` (both
+ * workspace-relative), creating destination directories as needed. `fromPath`
+ * is created empty if missing (matching clearDirectory's create-if-missing
+ * semantics) rather than throwing. Used to freeze docs/ and snippets/ into a
+ * snapshot, and to restore one back out.
+ */
+export async function copyDirectory(dir: FileSystemDirectoryHandle, fromPath: string, toPath: string): Promise<void> {
+  try {
+    const source = await resolveDirectory(dir, splitPath(fromPath), { create: true })
+    const destination = await resolveDirectory(dir, splitPath(toPath), { create: true })
+    await copyDirectoryContents(source, destination)
+  } catch (error) {
+    throw wrapFsError(`Could not copy ${fromPath} to ${toPath}`, error)
+  }
+}

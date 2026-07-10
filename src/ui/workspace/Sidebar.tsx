@@ -6,6 +6,7 @@ interface SidebarProps {
   handle: FileSystemDirectoryHandle
   onOpenWhereUsed?: () => void
   onOpenPublish?: () => void
+  onOpenHistory?: () => void
   onNewDocument?: () => void
   onSelectDocument?: (path: string) => void
   onRenameDocument?: (path: string) => void
@@ -52,6 +53,7 @@ export function Sidebar({
   handle,
   onOpenWhereUsed,
   onOpenPublish,
+  onOpenHistory,
   onNewDocument,
   onSelectDocument,
   onRenameDocument,
@@ -89,6 +91,15 @@ export function Sidebar({
               onClick={onOpenPublish}
             >
               Publish
+            </button>
+          )}
+          {onOpenHistory && (
+            <button
+              type="button"
+              className="rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
+              onClick={onOpenHistory}
+            >
+              History
             </button>
           )}
         </div>

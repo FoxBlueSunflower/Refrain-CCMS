@@ -73,9 +73,9 @@ publish → CHANGELOG.md + optional "What's new" page in the published site;
 publish-log.json; History panel with one-click restore (restore = copy
 back, current state auto-snapshotted first).
 **Accept when:**
-- [ ] Two publishes produce an accurate added/updated/removed changelog
-- [ ] Restore an old snapshot; nothing is ever destroyed in the process
-- [ ] publish-log.json accumulates one entry per publish
+- [x] Two publishes produce an accurate added/updated/removed changelog
+- [x] Restore an old snapshot; nothing is ever destroyed in the process
+- [x] publish-log.json accumulates one entry per publish
 
 ### ★ INTERVIEW-READY MILESTONE
 Demo script (≤5 min): open sample workspace → edit the warning-banner
