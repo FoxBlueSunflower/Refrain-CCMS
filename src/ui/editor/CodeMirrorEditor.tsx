@@ -3,9 +3,17 @@ import { EditorView, minimalSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { keymap } from '@codemirror/view'
 import { markdown } from '@codemirror/lang-markdown'
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { tags } from '@lezer/highlight'
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
 import type { ConditionsFile } from '../../core/workspace/types'
 import { createConditionCompletionSource, createTokenCompletionSource, type TokenCompletionItems } from './completions'
+
+// Overrides CodeMirror's default light-mode link/URL color (a dark indigo,
+// `#219`), which is nearly illegible against this editor's dark background.
+const editorHighlightStyle = HighlightStyle.define([
+  { tag: [tags.url, tags.link], color: '#a5b4fc', textDecoration: 'underline' },
+])
 
 interface CodeMirrorEditorProps {
   /** Stable identity of the open file — the editor is rebuilt only when this changes. */
@@ -80,6 +88,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
       extensions: [
         minimalSetup,
         markdown(),
+        syntaxHighlighting(editorHighlightStyle),
         autocompletion({
           override: [
             createTokenCompletionSource(() => completionItemsRef.current),
