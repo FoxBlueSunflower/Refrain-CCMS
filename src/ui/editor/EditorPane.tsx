@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
 import { CodeMirrorEditor, type CodeMirrorEditorHandle } from './CodeMirrorEditor'
@@ -7,6 +7,10 @@ import { PreviewPane } from './PreviewPane'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
+export interface EditorPaneHandle {
+  togglePreview: () => void
+}
+
 interface EditorPaneProps {
   title: string
   path: string
@@ -14,7 +18,6 @@ interface EditorPaneProps {
   liveText: string
   dirty: boolean
   saveStatus: SaveStatus
-  error: string | null
   currentRelPath: string | null
   resolveContext: ResolveContext
   completionItems: TokenCompletionItems
@@ -31,25 +34,32 @@ function statusLabel(dirty: boolean, saveStatus: SaveStatus): { text: string; cl
   return { text: 'Saved', className: 'text-gray-400' }
 }
 
-export function EditorPane({
-  title,
-  path,
-  initialValue,
-  liveText,
-  dirty,
-  saveStatus,
-  error,
-  currentRelPath,
-  resolveContext,
-  completionItems,
-  conditionsFile,
-  onChange,
-  onSave,
-  onNavigate,
-}: EditorPaneProps) {
+export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function EditorPane(
+  {
+    title,
+    path,
+    initialValue,
+    liveText,
+    dirty,
+    saveStatus,
+    currentRelPath,
+    resolveContext,
+    completionItems,
+    conditionsFile,
+    onChange,
+    onSave,
+    onNavigate,
+  },
+  forwardedRef,
+) {
   const status = statusLabel(dirty, saveStatus)
   const editorRef = useRef<CodeMirrorEditorHandle | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [previewVisible, setPreviewVisible] = useState(true)
+
+  useImperativeHandle(forwardedRef, () => ({
+    togglePreview: () => setPreviewVisible((visible) => !visible),
+  }))
 
   function insert(text: string, caretOffset?: number) {
     editorRef.current?.insertAtCursor(text, caretOffset)
@@ -136,12 +146,18 @@ export function EditorPane({
               </>
             )}
           </div>
+          <button
+            type="button"
+            className="rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
+            onClick={() => setPreviewVisible((visible) => !visible)}
+          >
+            {previewVisible ? 'Hide preview' : 'Show preview'}
+          </button>
           <span className={`text-xs ${status.className}`}>{status.text}</span>
         </div>
       </header>
-      {error && <p className="border-b border-gray-700 px-4 py-2 text-sm text-red-400">{error}</p>}
       <div className="flex min-h-0 flex-1">
-        <div className="min-h-0 flex-1 border-r border-gray-700">
+        <div className={`min-h-0 flex-1 ${previewVisible ? 'border-r border-gray-700' : ''}`}>
           <CodeMirrorEditor
             ref={editorRef}
             path={path}
@@ -152,10 +168,12 @@ export function EditorPane({
             conditionsFile={conditionsFile}
           />
         </div>
-        <div className="min-h-0 flex-1">
-          <PreviewPane text={liveText} currentRelPath={currentRelPath} onNavigate={onNavigate} resolveContext={resolveContext} />
-        </div>
+        {previewVisible && (
+          <div className="min-h-0 flex-1">
+            <PreviewPane text={liveText} currentRelPath={currentRelPath} onNavigate={onNavigate} resolveContext={resolveContext} />
+          </div>
+        )}
       </div>
     </div>
   )
-}
+})

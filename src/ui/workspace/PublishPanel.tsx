@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { BuildWarning } from '../../core/builder/types'
 import type { SnapshotDiff } from '../../core/snapshots/types'
 import type { PublishProfile } from '../../core/workspace/types'
+import { EmptyState } from '../shared/EmptyState'
 
 export interface PublishResultSummary {
   profileName: string
@@ -14,7 +15,6 @@ interface PublishPanelProps {
   profiles: Record<string, PublishProfile>
   publishing: boolean
   result: PublishResultSummary | null
-  error: string | null
   onPublish: (profileName: string) => void
   onClose: () => void
 }
@@ -24,7 +24,7 @@ function warningLabel(warning: BuildWarning): string {
   return `${location} — ${warning.message}`
 }
 
-export function PublishPanel({ profiles, publishing, result, error, onPublish, onClose }: PublishPanelProps) {
+export function PublishPanel({ profiles, publishing, result, onPublish, onClose }: PublishPanelProps) {
   const profileNames = Object.keys(profiles)
   const [selected, setSelected] = useState(profileNames[0] ?? '')
 
@@ -47,9 +47,10 @@ export function PublishPanel({ profiles, publishing, result, error, onPublish, o
 
         <div className="flex flex-col gap-4 p-4">
           {profileNames.length === 0 ? (
-            <p className="text-sm text-gray-400">
-              No publish profiles are defined in workspace.json — add one to workspace.json's publishProfiles to publish.
-            </p>
+            <EmptyState
+              title="No publish profiles yet"
+              description="Add one to workspace.json's publishProfiles to publish."
+            />
           ) : (
             <>
               <div>
@@ -80,8 +81,6 @@ export function PublishPanel({ profiles, publishing, result, error, onPublish, o
               </button>
             </>
           )}
-
-          {error && <p className="text-sm text-red-400">{error}</p>}
 
           {result && (
             <div className="border-t border-gray-700 pt-3">

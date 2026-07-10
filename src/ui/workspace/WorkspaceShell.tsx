@@ -33,8 +33,13 @@ import {
   writeTextFile,
   type SnapshotSummary,
 } from '../../fs'
-import { EditorPane, type SaveStatus } from '../editor/EditorPane'
+import { EditorPane, type EditorPaneHandle, type SaveStatus } from '../editor/EditorPane'
 import type { CompletionItem } from '../editor/completions'
+import { useToasts } from '../notifications/ToastContext'
+import { OnboardingController, type OnboardingControllerHandle } from '../onboarding/OnboardingController'
+import { EmptyState } from '../shared/EmptyState'
+import { ShortcutsHelpDialog } from '../shortcuts/ShortcutsHelpDialog'
+import { useAppShortcuts } from '../shortcuts/useAppShortcuts'
 import { ConditionsEditor, type ConditionsEditorHandle } from './ConditionsEditor'
 import { ConfirmDialog } from './ConfirmDialog'
 import { HistoryPanel } from './HistoryPanel'
@@ -49,6 +54,7 @@ const CHANGELOG_FILE = 'CHANGELOG.md'
 
 interface WorkspaceShellProps {
   handle: FileSystemDirectoryHandle
+  justCreatedSample?: boolean
 }
 
 type EntryKind = 'document' | 'snippet'
@@ -107,16 +113,15 @@ async function uniquePath(handle: FileSystemDirectoryHandle, baseDir: string, ba
   return candidate
 }
 
-export function WorkspaceShell({ handle }: WorkspaceShellProps) {
+export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceShellProps) {
+  const { push: pushToast } = useToasts()
   const [modal, setModal] = useState<ModalState>({ kind: 'none' })
   const [refreshToken, setRefreshToken] = useState(0)
-  const [error, setError] = useState<string | null>(null)
 
   const [openDoc, setOpenDoc] = useState<OpenDocument | null>(null)
   const [liveText, setLiveText] = useState('')
   const [dirty, setDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [openError, setOpenError] = useState<string | null>(null)
 
   const [variables, setVariables] = useState<VariablesFile>({})
   const [snippets, setSnippets] = useState<SnippetSource>({})
@@ -129,14 +134,12 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const [workspaceConfig, setWorkspaceConfig] = useState<WorkspaceConfig | null>(null)
   const [publishing, setPublishing] = useState(false)
   const [publishResult, setPublishResult] = useState<PublishResultSummary | null>(null)
-  const [publishError, setPublishError] = useState<string | null>(null)
 
   const [historyOpen, setHistoryOpen] = useState(false)
   const [snapshots, setSnapshots] = useState<SnapshotSummary[]>([])
   const [publishLog, setPublishLog] = useState<PublishLogEntry[]>([])
   const [snapshotting, setSnapshotting] = useState(false)
   const [restoring, setRestoring] = useState(false)
-  const [historyError, setHistoryError] = useState<string | null>(null)
   const [restoreDiscrepancies, setRestoreDiscrepancies] = useState<{
     variables: VariableDiscrepancy[]
     conditions: ConditionDiscrepancy[]
@@ -144,9 +147,12 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
 
   const [activePane, setActivePane] = useState<Pane>('document')
   const [openedPanes, setOpenedPanes] = useState<Set<Exclude<Pane, 'document'>>>(new Set())
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
   const variablesEditorRef = useRef<VariablesEditorHandle | null>(null)
   const conditionsEditorRef = useRef<ConditionsEditorHandle | null>(null)
   const profilesEditorRef = useRef<ProfilesEditorHandle | null>(null)
+  const editorPaneRef = useRef<EditorPaneHandle | null>(null)
+  const onboardingRef = useRef<OnboardingControllerHandle | null>(null)
 
   // Updated synchronously (never via a lagging effect) so async timers and
   // handlers always see the latest edited text and active file — this is
@@ -212,14 +218,13 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           setDirty(bufferRef.current !== text)
         }
         setSaveStatus('saved')
-        setOpenError(null)
         void reloadResolverData()
       } catch (err) {
         setSaveStatus('error')
-        setOpenError(`Could not save: ${err instanceof Error ? err.message : String(err)}`)
+        pushToast({ kind: 'error', message: `Could not save: ${err instanceof Error ? err.message : String(err)}` })
       }
     },
-    [handle, reloadResolverData],
+    [handle, reloadResolverData, pushToast],
   )
 
   const flushPendingSave = useCallback(async () => {
@@ -252,7 +257,6 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
 
       await flushAllPanes()
       setActivePane('document')
-      setOpenError(null)
       try {
         const text = await readTextFile(handle, fullPath)
         bufferRef.current = text
@@ -264,10 +268,10 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
       } catch (err) {
         activeRef.current = null
         setOpenDoc(null)
-        setOpenError(err instanceof Error ? err.message : String(err))
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       }
     },
-    [handle, flushAllPanes, activePane],
+    [handle, flushAllPanes, activePane, pushToast],
   )
 
   const openVariablesEditor = useCallback(async () => {
@@ -299,7 +303,6 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
       if (!profile) return
 
       setPublishing(true)
-      setPublishError(null)
       try {
         const [docs, docTree] = await Promise.all([readAllDocuments(handle), readDocTree(handle)])
         const result = buildSite({
@@ -327,12 +330,12 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
 
         setPublishResult({ profileName, warnings: result.warnings, pageCount: result.files.length, changes })
       } catch (err) {
-        setPublishError(err instanceof Error ? err.message : String(err))
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       } finally {
         setPublishing(false)
       }
     },
-    [handle, workspaceConfig, conditionsFile, snippets, variables],
+    [handle, workspaceConfig, conditionsFile, snippets, variables, pushToast],
   )
 
   const loadHistory = useCallback(async () => {
@@ -341,33 +344,30 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
       setSnapshots(nextSnapshots)
       setPublishLog(nextLog)
     } catch (err) {
-      setHistoryError(err instanceof Error ? err.message : String(err))
+      pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
     }
-  }, [handle])
+  }, [handle, pushToast])
 
   const openHistoryPanel = useCallback(() => {
     setHistoryOpen(true)
-    setHistoryError(null)
     void loadHistory()
   }, [loadHistory])
 
   const handleSaveNow = useCallback(async () => {
     setSnapshotting(true)
-    setHistoryError(null)
     try {
       await writeSnapshot(handle, 'manual')
       await loadHistory()
     } catch (err) {
-      setHistoryError(err instanceof Error ? err.message : String(err))
+      pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
     } finally {
       setSnapshotting(false)
     }
-  }, [handle, loadHistory])
+  }, [handle, loadHistory, pushToast])
 
   const handleRestore = useCallback(
     async (snapshotName: string) => {
       setRestoring(true)
-      setHistoryError(null)
       const beforeVariables = variables
       const beforeConditions = conditionsFile
       try {
@@ -394,26 +394,27 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           conditions: diffConditions(beforeConditions, afterConditions),
         })
       } catch (err) {
-        setHistoryError(err instanceof Error ? err.message : String(err))
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       } finally {
         setRestoring(false)
       }
     },
-    [handle, variables, conditionsFile, loadHistory],
+    [handle, variables, conditionsFile, loadHistory, pushToast],
   )
 
   const handleNavigateFromPreview = useCallback(
     async (relPath: string) => {
       const fullPath = `${baseDirFor('document')}/${relPath}`
       if (!(await pathExists(handle, fullPath))) {
-        setOpenError(
-          `Couldn't open "${titleFromPath(relPath)}" — the linked document doesn't exist. It may have been renamed or deleted.`,
-        )
+        pushToast({
+          kind: 'error',
+          message: `Couldn't open "${titleFromPath(relPath)}" — the linked document doesn't exist. It may have been renamed or deleted.`,
+        })
         return
       }
       await openEntry('document', relPath)
     },
-    [handle, openEntry],
+    [handle, openEntry, pushToast],
   )
 
   const handleBufferChange = useCallback(
@@ -453,15 +454,14 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         const baseDir = baseDirFor(entryKind)
         const path = await uniquePath(handle, baseDir, slugify(title) || 'untitled')
         await writeTextFile(handle, path, templateFor(entryKind, title))
-        setError(null)
         setModal({ kind: 'none' })
         bump()
         void openEntry(entryKind, path.slice(baseDir.length + 1))
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       }
     },
-    [handle, openEntry],
+    [handle, openEntry, pushToast],
   )
 
   const handleRename = useCallback(
@@ -473,7 +473,7 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
         const newPath = `${baseDir}/${segments.join('/')}`
         const oldPath = `${baseDir}/${oldRelPath}`
         if (newPath !== oldPath && (await pathExists(handle, newPath))) {
-          setError(`A ${labelFor(entryKind)} named "${segments[segments.length - 1]}" already exists.`)
+          pushToast({ kind: 'error', message: `A ${labelFor(entryKind)} named "${segments[segments.length - 1]}" already exists.` })
           return
         }
         await renameFile(handle, oldPath, newPath)
@@ -481,14 +481,13 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           activeRef.current.fullPath = newPath
           setOpenDoc({ kind: entryKind, relPath: segments.join('/'), fullPath: newPath })
         }
-        setError(null)
         setModal({ kind: 'none' })
         bump()
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       }
     },
-    [handle],
+    [handle, pushToast],
   )
 
   // TODO(future phase): warn on delete if other docs/snippets link to or embed this file
@@ -505,24 +504,54 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           activeRef.current = null
           setOpenDoc(null)
         }
-        setError(null)
         setModal({ kind: 'none' })
         bump()
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       }
     },
-    [handle],
+    [handle, pushToast],
   )
+
+  const closeTopmostOverlay = useCallback(() => {
+    if (modal.kind !== 'none') {
+      setModal({ kind: 'none' })
+    } else if (shortcutsHelpOpen) {
+      setShortcutsHelpOpen(false)
+    } else if (whereUsedOpen) {
+      setWhereUsedOpen(false)
+    } else if (publishOpen) {
+      setPublishOpen(false)
+    } else if (historyOpen) {
+      setHistoryOpen(false)
+      setRestoreDiscrepancies(null)
+    }
+  }, [modal, shortcutsHelpOpen, whereUsedOpen, publishOpen, historyOpen])
+
+  const anyOverlayOpen =
+    modal.kind !== 'none' || shortcutsHelpOpen || whereUsedOpen || publishOpen || historyOpen
+
+  useAppShortcuts(anyOverlayOpen, {
+    onSave: handleExplicitSave,
+    onNewDocument: () => setModal({ kind: 'new', entryKind: 'document' }),
+    onPublish: openPublishPanel,
+    onHistory: openHistoryPanel,
+    onWhereUsed: () => setWhereUsedOpen(true),
+    onTogglePreview: () => editorPaneRef.current?.togglePreview(),
+    onClose: closeTopmostOverlay,
+    onHelp: () => setShortcutsHelpOpen(true),
+  })
 
   return (
     <div className="flex min-h-screen">
+      <OnboardingController ref={onboardingRef} showTourOnMount={justCreatedSample} />
       <Sidebar
         handle={handle}
         refreshToken={refreshToken}
         onOpenWhereUsed={() => setWhereUsedOpen(true)}
         onOpenPublish={openPublishPanel}
         onOpenHistory={openHistoryPanel}
+        onOpenTour={() => onboardingRef.current?.replay()}
         onNewDocument={() => setModal({ kind: 'new', entryKind: 'document' })}
         onSelectDocument={(path) => void openEntry('document', path)}
         onRenameDocument={(path) => setModal({ kind: 'rename', entryKind: 'document', path })}
@@ -578,13 +607,13 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           (openDoc ? (
             <EditorPane
               key={openDoc.fullPath}
+              ref={editorPaneRef}
               title={titleFromPath(openDoc.relPath)}
               path={openDoc.fullPath}
               initialValue={bufferRef.current}
               liveText={liveText}
               dirty={dirty}
               saveStatus={saveStatus}
-              error={openError}
               currentRelPath={openDoc.kind === 'document' ? openDoc.relPath : null}
               resolveContext={resolveContext}
               completionItems={completionItems}
@@ -594,9 +623,12 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
               onNavigate={(relPath) => void handleNavigateFromPreview(relPath)}
             />
           ) : (
-            <main className="flex flex-1 flex-col items-center justify-center gap-2 bg-gray-900 text-gray-400">
-              <p>Select a document</p>
-              {(error ?? openError) && <p className="max-w-md text-center text-sm text-red-400">{error ?? openError}</p>}
+            <main className="flex flex-1 flex-col items-center justify-center bg-gray-900">
+              <EmptyState
+                title="Select a document"
+                description="Pick a document from the sidebar, or create a new one to get started."
+                action={{ label: '+ New document', onClick: () => setModal({ kind: 'new', entryKind: 'document' }) }}
+              />
             </main>
           ))}
       </div>
@@ -648,7 +680,6 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           profiles={workspaceConfig?.publishProfiles ?? {}}
           publishing={publishing}
           result={publishResult}
-          error={publishError}
           onPublish={(profileName) => void handlePublish(profileName)}
           onClose={() => setPublishOpen(false)}
         />
@@ -660,7 +691,6 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           publishLog={publishLog}
           snapshotting={snapshotting}
           restoring={restoring}
-          error={historyError}
           discrepancies={restoreDiscrepancies}
           onSaveNow={() => void handleSaveNow()}
           onRestore={(name) => void handleRestore(name)}
@@ -670,6 +700,8 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
           }}
         />
       )}
+
+      {shortcutsHelpOpen && <ShortcutsHelpDialog onClose={() => setShortcutsHelpOpen(false)} />}
     </div>
   )
 }

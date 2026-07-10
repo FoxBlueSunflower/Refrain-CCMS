@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createSampleWorkspace, looksLikeWorkspace, PickerCancelledError, pickWorkspaceFolder, saveWorkspaceHandle } from '../../fs'
 
 interface WorkspacePickerProps {
-  onConnected: (handle: FileSystemDirectoryHandle) => void
+  onConnected: (handle: FileSystemDirectoryHandle, opts?: { isNewSample: boolean }) => void
   errorMessage?: string
 }
 
@@ -43,7 +43,7 @@ export function WorkspacePicker({ onConnected, errorMessage }: WorkspacePickerPr
     try {
       await createSampleWorkspace(handle)
       await saveWorkspaceHandle(handle)
-      onConnected(handle)
+      onConnected(handle, { isNewSample: true })
     } catch (error) {
       setState({ step: 'error', message: error instanceof Error ? error.message : String(error) })
     }

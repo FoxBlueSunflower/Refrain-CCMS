@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { WorkspaceIndex } from '../../core/indexer/types'
 import type { SnippetSource } from '../../core/resolver/types'
 import type { VariablesFile } from '../../core/workspace/types'
+import { EmptyState } from '../shared/EmptyState'
 
 interface WhereUsedPanelProps {
   variables: VariablesFile
@@ -41,7 +42,7 @@ export function WhereUsedPanel({ variables, snippets, index, onOpenDocument, onC
           <h3 className="mb-2 text-sm font-semibold text-gray-100">Where-used</h3>
 
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Variables</p>
-          {variableKeys.length === 0 && <p className="mb-2 text-xs text-gray-500">None yet.</p>}
+          {variableKeys.length === 0 && <EmptyState title="None yet" />}
           {variableKeys.map((key) => (
             <button
               key={`variable-${key}`}
@@ -57,7 +58,7 @@ export function WhereUsedPanel({ variables, snippets, index, onOpenDocument, onC
           ))}
 
           <p className="mt-3 mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Snippets</p>
-          {snippetKeys.length === 0 && <p className="text-xs text-gray-500">None yet.</p>}
+          {snippetKeys.length === 0 && <EmptyState title="None yet" />}
           {snippetKeys.map((key) => (
             <button
               key={`snippet-${key}`}
@@ -89,7 +90,7 @@ export function WhereUsedPanel({ variables, snippets, index, onOpenDocument, onC
 
           {!selection && <p className="text-sm text-gray-400">Select a variable or snippet on the left to see where it's used.</p>}
 
-          {selection && usedBy.length === 0 && <p className="text-sm text-gray-400">Not used anywhere yet.</p>}
+          {selection && usedBy.length === 0 && <EmptyState title="Not used anywhere yet" />}
 
           {selection && usedBy.length > 0 && (
             <ul className="flex-1 space-y-1 overflow-auto">

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { DocTreeNode } from '../../core/workspace/types'
 import { readDocTree, readSnippetList } from '../../fs'
+import { EmptyState } from '../shared/EmptyState'
 
 interface SidebarProps {
   handle: FileSystemDirectoryHandle
   onOpenWhereUsed?: () => void
   onOpenPublish?: () => void
   onOpenHistory?: () => void
+  onOpenTour?: () => void
   onNewDocument?: () => void
   onSelectDocument?: (path: string) => void
   onRenameDocument?: (path: string) => void
@@ -54,6 +56,7 @@ export function Sidebar({
   onOpenWhereUsed,
   onOpenPublish,
   onOpenHistory,
+  onOpenTour,
   onNewDocument,
   onSelectDocument,
   onRenameDocument,
@@ -104,6 +107,15 @@ export function Sidebar({
               History
             </button>
           )}
+          {onOpenTour && (
+            <button
+              type="button"
+              className="rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
+              onClick={onOpenTour}
+            >
+              Tour
+            </button>
+          )}
         </div>
       </div>
 
@@ -126,7 +138,10 @@ export function Sidebar({
         {docs.error && <p className="text-sm text-red-400">{docs.error}</p>}
         {!docs.error && docs.tree === null && <p className="text-sm text-gray-400">Loading documents…</p>}
         {!docs.error && docs.tree !== null && docs.tree.length === 0 && (
-          <p className="text-sm text-gray-400">No documents yet.</p>
+          <EmptyState
+            title="No documents yet"
+            action={onNewDocument ? { label: '+ New document', onClick: onNewDocument } : undefined}
+          />
         )}
         {docs.tree && docs.tree.length > 0 && (
           <DocTreeList
@@ -157,7 +172,10 @@ export function Sidebar({
         {snippets.error && <p className="text-sm text-red-400">{snippets.error}</p>}
         {!snippets.error && snippets.tree === null && <p className="text-sm text-gray-400">Loading snippets…</p>}
         {!snippets.error && snippets.tree !== null && snippets.tree.length === 0 && (
-          <p className="text-sm text-gray-400">No snippets yet.</p>
+          <EmptyState
+            title="No snippets yet"
+            action={onNewSnippet ? { label: '+ New snippet', onClick: onNewSnippet } : undefined}
+          />
         )}
         {snippets.tree && snippets.tree.length > 0 && (
           <DocTreeList
