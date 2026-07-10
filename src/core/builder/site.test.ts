@@ -106,6 +106,40 @@ describe('buildSite — condition warnings', () => {
   })
 })
 
+describe('buildSite — user-defined dimensions', () => {
+  it('filters correctly through the full pipeline using a dimension other than audience/output', () => {
+    const documents: IndexDocument[] = [
+      { path: 'docs/index.md', text: '---\ntitle: Test\n---\n\nBefore.\n:::when region=us\nUS-only note.\n:::\nAfter.\n' },
+    ]
+    const docTree: DocTreeNode[] = [{ kind: 'file', name: 'index', path: 'index.md' }]
+    const conditionsFile: ConditionsFile = { region: ['us', 'eu'] }
+
+    const usResult = buildSite({
+      documents,
+      docTree,
+      snippets: {},
+      variables: {},
+      conditionsFile,
+      profile: { region: ['us'] },
+      siteTitle: 'Test Site',
+    })
+    expect(usResult.warnings).toEqual([])
+    expect(usResult.files.find((f) => f.path === 'index.html')!.contents).toContain('US-only note.')
+
+    const euResult = buildSite({
+      documents,
+      docTree,
+      snippets: {},
+      variables: {},
+      conditionsFile,
+      profile: { region: ['eu'] },
+      siteTitle: 'Test Site',
+    })
+    expect(euResult.warnings).toEqual([])
+    expect(euResult.files.find((f) => f.path === 'index.html')!.contents).not.toContain('US-only note.')
+  })
+})
+
 describe('buildSite — index.html fallback', () => {
   it('synthesizes an index.html when no document maps to that output path', () => {
     const documents: IndexDocument[] = [{ path: 'docs/guides/setup.md', text: '# Setup\n' }]

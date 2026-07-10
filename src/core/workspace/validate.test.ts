@@ -128,16 +128,28 @@ describe('validateConditionsFile', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('rejects when "output" is missing', () => {
+  it('accepts a conditions.json missing "output" — dimensions are no longer a fixed set', () => {
     const result = validateConditionsFile({ audience: ['customer'] })
-    expect(result.ok).toBe(false)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value).toEqual({ audience: ['customer'] })
+    }
   })
 
-  it('warns but still accepts an unrecognized dimension', () => {
+  it('accepts a conditions.json with any dimension name', () => {
     const result = validateConditionsFile({ audience: ['customer'], output: ['web'], locale: ['en'] })
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.warnings.some((w) => w.includes('locale'))).toBe(true)
+      expect(result.value.locale).toEqual(['en'])
+      expect(result.warnings).toEqual([])
+    }
+  })
+
+  it('accepts an empty conditions.json — no dimensions defined yet', () => {
+    const result = validateConditionsFile({})
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value).toEqual({})
     }
   })
 })

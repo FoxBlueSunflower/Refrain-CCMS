@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { VariablesFile } from '../../core/workspace/types'
-import { validateVariableKeys, type KeyCandidate, type VariableKeyError } from '../../core/workspace/variable-keys'
+import { validateIdentifierKeys, type IdentifierError, type KeyCandidate } from '../../core/workspace/identifier-keys'
 import { writeVariablesFile } from '../../fs'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -64,7 +64,7 @@ function canonicalJson(variables: VariablesFile): string {
   return JSON.stringify(Object.entries(variables).sort(([a], [b]) => a.localeCompare(b)))
 }
 
-function errorMessage(errors: VariableKeyError[]): string {
+function errorMessage(errors: IdentifierError[]): string {
   if (errors.includes('empty')) return 'Key is required'
   const invalid = errors.includes('invalid-format')
   const duplicate = errors.includes('duplicate')
@@ -95,7 +95,7 @@ export const VariablesEditor = forwardRef<VariablesEditorHandle, VariablesEditor
   )
 
   const rowErrors = useMemo(
-    () => validateVariableKeys(rows.map((row): KeyCandidate => ({ id: row.id, key: row.key }))),
+    () => validateIdentifierKeys(rows.map((row): KeyCandidate => ({ id: row.id, key: row.key }))),
     [rows],
   )
   const hasErrors = rowErrors.size > 0
@@ -105,7 +105,7 @@ export const VariablesEditor = forwardRef<VariablesEditorHandle, VariablesEditor
 
   const attemptSave = useCallback(
     async (currentRows: DraftRow[]) => {
-      const errors = validateVariableKeys(currentRows.map((row): KeyCandidate => ({ id: row.id, key: row.key })))
+      const errors = validateIdentifierKeys(currentRows.map((row): KeyCandidate => ({ id: row.id, key: row.key })))
       if (errors.size > 0) return
       const nextFile = serializeRows(currentRows)
       const nextJson = canonicalJson(nextFile)

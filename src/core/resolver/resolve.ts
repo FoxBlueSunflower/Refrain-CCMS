@@ -1,5 +1,5 @@
 import { parseFrontmatter } from '../frontmatter/parse'
-import { VARIABLE_KEY_CHARS } from '../workspace/variable-keys'
+import { IDENTIFIER_CHARS } from '../workspace/identifier-keys'
 import type { ResolveContext, ResolveResult, ResolverWarning } from './types'
 
 /**
@@ -9,7 +9,7 @@ import type { ResolveContext, ResolveResult, ResolverWarning } from './types'
  */
 const MAX_SNIPPET_DEPTH = 2
 
-const TOKEN_PATTERN = new RegExp(`\\{\\{(>)?\\s*([${VARIABLE_KEY_CHARS}]+)\\s*\\}\\}`, 'g')
+const TOKEN_PATTERN = new RegExp(`\\{\\{(>)?\\s*([${IDENTIFIER_CHARS}]+)\\s*\\}\\}`, 'g')
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')

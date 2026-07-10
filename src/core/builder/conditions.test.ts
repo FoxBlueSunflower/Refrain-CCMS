@@ -76,6 +76,23 @@ describe('filterConditions', () => {
     expect(result.warnings).toEqual([])
     expect(result.text).toBe(text)
   })
+
+  it('accepts and filters a wholly new, non-audience/output dimension — dimensions are user-defined, not a fixed set', () => {
+    const text = 'Before.\n:::when region=us\nUS-only note.\n:::\nAfter.'
+    const regionConditions: ConditionsFile = { region: ['us', 'eu'] }
+    const regionProfile: PublishProfile = { region: ['us'] }
+    const result = filterConditions(text, 'docs/index.md', regionProfile, regionConditions)
+    expect(result.warnings).toEqual([])
+    expect(result.text).toBe('Before.\nUS-only note.\nAfter.')
+  })
+
+  it('excludes without warning a known dimension the active profile simply omits', () => {
+    const text = 'Before.\n:::when region=us\nUS-only note.\n:::\nAfter.'
+    const regionConditions: ConditionsFile = { region: ['us', 'eu'] }
+    const result = filterConditions(text, 'docs/index.md', profile(), regionConditions)
+    expect(result.warnings).toEqual([])
+    expect(result.text).toBe('Before.\nAfter.')
+  })
 })
 
 describe('annotateConditionBlocks', () => {

@@ -25,6 +25,11 @@ describe('collectRefs', () => {
     expect([...refs.conditions]).toEqual(['audience=internal'])
   })
 
+  it('finds a condition block using a dimension other than audience/output — dimensions are user-defined', () => {
+    const refs = collectRefs(':::when region=us\nUS-only note.\n:::')
+    expect([...refs.conditions]).toEqual(['region=us'])
+  })
+
   it('dedupes repeated references', () => {
     const refs = collectRefs('{{version}} ... {{version}} ... {{> foo}} ... {{> foo}}')
     expect([...refs.variables]).toEqual(['version'])

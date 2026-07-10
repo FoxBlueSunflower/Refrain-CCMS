@@ -15,6 +15,8 @@ interface SidebarProps {
   onRenameSnippet?: (path: string) => void
   onDeleteSnippet?: (path: string) => void
   onOpenVariables?: () => void
+  onOpenConditions?: () => void
+  onOpenProfiles?: () => void
   /** Bump this to force the tree to re-fetch after an external change. */
   refreshToken?: number
 }
@@ -59,6 +61,8 @@ export function Sidebar({
   onRenameSnippet,
   onDeleteSnippet,
   onOpenVariables,
+  onOpenConditions,
+  onOpenProfiles,
   refreshToken,
 }: SidebarProps) {
   const docs = useTree(readDocTree, handle, refreshToken)
@@ -162,6 +166,32 @@ export function Sidebar({
             onClick={onOpenVariables}
           >
             Edit variables
+          </button>
+        </div>
+      )}
+
+      {onOpenConditions && (
+        <div>
+          <h2 className="mb-1 truncate text-sm font-semibold uppercase tracking-wide text-gray-400">Conditions</h2>
+          <button
+            type="button"
+            className="block w-full truncate rounded px-1 py-0.5 text-left text-sm text-gray-300 hover:bg-gray-700"
+            onClick={onOpenConditions}
+          >
+            Edit conditions
+          </button>
+        </div>
+      )}
+
+      {onOpenProfiles && (
+        <div>
+          <h2 className="mb-1 truncate text-sm font-semibold uppercase tracking-wide text-gray-400">Publish profiles</h2>
+          <button
+            type="button"
+            className="block w-full truncate rounded px-1 py-0.5 text-left text-sm text-gray-300 hover:bg-gray-700"
+            onClick={onOpenProfiles}
+          >
+            Manage profiles
           </button>
         </div>
       )}

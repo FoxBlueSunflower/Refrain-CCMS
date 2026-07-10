@@ -3,7 +3,7 @@ import { parseFrontmatter } from '../frontmatter/parse'
 import { resolveDocument } from '../resolver/resolve'
 import { DOCS_DIR } from '../workspace/constants'
 import { relativePath, resolveRelativeDocLink } from '../workspace/paths'
-import { VARIABLE_KEY_CHARS } from '../workspace/variable-keys'
+import { IDENTIFIER_CHARS } from '../workspace/identifier-keys'
 import type { DocTreeNode, VariablesFile } from '../workspace/types'
 import { filterConditions } from './conditions'
 import { buildNav, docPathToOutputPath } from './nav'
@@ -11,7 +11,7 @@ import { buildSearchIndex } from './search-index'
 import { renderPage } from './html-template'
 import type { BuildWarning, BuiltFile, PublishInput, PublishResult } from './types'
 
-const TITLE_TOKEN_PATTERN = new RegExp(`\\{\\{\\s*([${VARIABLE_KEY_CHARS}]+)\\s*\\}\\}`, 'g')
+const TITLE_TOKEN_PATTERN = new RegExp(`\\{\\{\\s*([${IDENTIFIER_CHARS}]+)\\s*\\}\\}`, 'g')
 
 /**
  * Best-effort {{key}} substitution for <title>/nav text: variables only, no
