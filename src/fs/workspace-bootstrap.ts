@@ -1,7 +1,7 @@
-import { WORKSPACE_FILE } from '../core/workspace/constants'
+import { CONDITIONS_FILE, WORKSPACE_FILE } from '../core/workspace/constants'
 import { buildSampleWorkspaceFiles } from '../core/workspace/sample-workspace'
-import type { WorkspaceConfig } from '../core/workspace/types'
-import { validateWorkspaceConfig, type ValidationResult } from '../core/workspace/validate'
+import type { ConditionsFile, WorkspaceConfig } from '../core/workspace/types'
+import { validateConditionsFile, validateWorkspaceConfig, type ValidationResult } from '../core/workspace/validate'
 import { readTextFile, writeTextFile } from './directory'
 
 export async function looksLikeWorkspace(dir: FileSystemDirectoryHandle): Promise<boolean> {
@@ -19,6 +19,17 @@ export async function readWorkspaceConfig(dir: FileSystemDirectoryHandle): Promi
     return validateWorkspaceConfig(JSON.parse(raw))
   } catch (error) {
     return { ok: false, errors: [error instanceof Error ? error.message : String(error)] }
+  }
+}
+
+/** Fails soft to an empty table — a missing or malformed conditions.json never blocks publishing. */
+export async function readConditionsFile(dir: FileSystemDirectoryHandle): Promise<ConditionsFile> {
+  try {
+    const raw = await readTextFile(dir, CONDITIONS_FILE)
+    const result = validateConditionsFile(JSON.parse(raw))
+    return result.ok ? result.value : { audience: [], output: [] }
+  } catch {
+    return { audience: [], output: [] }
   }
 }
 

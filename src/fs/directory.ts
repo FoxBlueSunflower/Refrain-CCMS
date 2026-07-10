@@ -88,6 +88,24 @@ export async function deleteEntry(dir: FileSystemDirectoryHandle, path: string):
 }
 
 /**
+ * Removes every entry inside the directory at `path` (creating the
+ * directory first if it doesn't exist yet), leaving the directory itself in
+ * place, empty. Used to give a rebuilt publish/ a clean slate so renamed or
+ * deleted documents don't leave orphaned stale pages behind.
+ */
+export async function clearDirectory(dir: FileSystemDirectoryHandle, path: string): Promise<void> {
+  const segments = splitPath(path)
+  try {
+    const target = await resolveDirectory(dir, segments, { create: true })
+    for await (const handle of target.values()) {
+      await target.removeEntry(handle.name, { recursive: true })
+    }
+  } catch (error) {
+    throw wrapFsError(`Could not clear ${path}`, error)
+  }
+}
+
+/**
  * The File System Access API has no native rename. Writes the new file
  * first and only deletes the original once that succeeds, so a failure
  * partway through never destroys the original content.

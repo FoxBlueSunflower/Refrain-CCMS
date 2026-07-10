@@ -3,6 +3,7 @@ import {
   isExternalHref,
   isValidFilename,
   joinPath,
+  relativePath,
   resolveRelativeDocLink,
   slugify,
   splitPath,
@@ -99,6 +100,28 @@ describe('uniqueSlug', () => {
 
   it('keeps incrementing until a free slug is found', () => {
     expect(uniqueSlug('new-doc', new Set(['new-doc', 'new-doc-2', 'new-doc-3']))).toBe('new-doc-4')
+  })
+})
+
+describe('relativePath', () => {
+  it('resolves a same-directory target', () => {
+    expect(relativePath('guides/installation.html', 'guides/setup.html')).toBe('setup.html')
+  })
+
+  it('resolves from the root down into a subfolder', () => {
+    expect(relativePath('index.html', 'guides/installation.html')).toBe('guides/installation.html')
+  })
+
+  it('resolves from a nested file back up to the root', () => {
+    expect(relativePath('guides/installation.html', 'index.html')).toBe('../index.html')
+  })
+
+  it('resolves across sibling branches', () => {
+    expect(relativePath('guides/installation.html', 'reference/api.html')).toBe('../reference/api.html')
+  })
+
+  it('resolves a target nested deeper under a shared ancestor', () => {
+    expect(relativePath('guides/installation.html', 'guides/advanced/tuning.html')).toBe('advanced/tuning.html')
   })
 })
 

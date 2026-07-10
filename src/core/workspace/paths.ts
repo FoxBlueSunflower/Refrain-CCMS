@@ -44,6 +44,29 @@ export function uniqueSlug(base: string, existing: ReadonlySet<string>): string 
 }
 
 /**
+ * Computes a POSIX-style relative path from the directory of `fromFile` to
+ * `toFile`, both slash-paths relative to the same root (e.g. publish/).
+ * Used for nav hrefs and rewritten in-body doc links in the published site.
+ */
+export function relativePath(fromFile: string, toFile: string): string {
+  const fromSegments = splitPath(fromFile).slice(0, -1)
+  const toSegments = splitPath(toFile)
+
+  let common = 0
+  while (
+    common < fromSegments.length &&
+    common < toSegments.length - 1 &&
+    fromSegments[common] === toSegments[common]
+  ) {
+    common += 1
+  }
+
+  const ups = fromSegments.length - common
+  const segments = [...Array(ups).fill('..'), ...toSegments.slice(common)]
+  return segments.join('/')
+}
+
+/**
  * True for hrefs that should be left to native browser navigation: scheme-qualified
  * URLs (http:, https:, mailto:, ...) and protocol-relative (//host/...) links.
  */
