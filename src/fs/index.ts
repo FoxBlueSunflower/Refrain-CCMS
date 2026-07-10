@@ -4,14 +4,26 @@ export {
   copyDirectory,
   copyFile,
   deleteEntry,
+  directoryExists,
   FsWriteError,
   listDirectory,
   pathExists,
   readTextFile,
   renameFile,
+  resolveDirectoryHandle,
   writeTextFile,
 } from './directory'
 export { readDocTree, readSnippetList } from './doc-tree'
+export {
+  createFolder,
+  deleteFolder,
+  moveFile,
+  moveFolder,
+  renameFolder,
+  snippetStemExists,
+  walkMarkdownTree,
+  writeSiblingOrder,
+} from './folders'
 export { readAllDocuments } from './index-data'
 export { readAllSnippets, readVariablesFile, writeVariablesFile } from './resolver-data'
 export type { SnapshotSummary } from './snapshots'

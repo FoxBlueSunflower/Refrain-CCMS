@@ -12,7 +12,11 @@ function labelFor(filename: string): string {
  * Phase 1 does not parse markdown frontmatter, so document labels are
  * filenames (minus .md) and only folders can carry an explicit sort order.
  */
-export function buildDocTree(entries: RawEntry[], folderMeta: Map<string, FolderMeta>): DocTreeNode[] {
+export function buildDocTree(
+  entries: RawEntry[],
+  folderMeta: Map<string, FolderMeta>,
+  fileOrder: Map<string, number> = new Map(),
+): DocTreeNode[] {
   const root: DocTreeNode[] = []
   const foldersByPath = new Map<string, DocTreeNode>()
 
@@ -52,17 +56,21 @@ export function buildDocTree(entries: RawEntry[], folderMeta: Map<string, Folder
     }
   }
 
-  return sortTree(root, folderMeta)
+  return sortTree(root, folderMeta, fileOrder)
 }
 
-function sortTree(nodes: DocTreeNode[], folderMeta: Map<string, FolderMeta>): DocTreeNode[] {
+function sortTree(
+  nodes: DocTreeNode[],
+  folderMeta: Map<string, FolderMeta>,
+  fileOrder: Map<string, number>,
+): DocTreeNode[] {
   const orderOf = (node: DocTreeNode): number | undefined =>
-    node.kind === 'folder' ? folderMeta.get(node.path)?.order : undefined
+    node.kind === 'folder' ? folderMeta.get(node.path)?.order : fileOrder.get(node.path)
 
   const withOrder = nodes.filter((n) => orderOf(n) !== undefined).sort((a, b) => orderOf(a)! - orderOf(b)!)
   const withoutOrder = nodes.filter((n) => orderOf(n) === undefined).sort((a, b) => a.name.localeCompare(b.name))
 
   return [...withOrder, ...withoutOrder].map((node) =>
-    node.children ? { ...node, children: sortTree(node.children, folderMeta) } : node,
+    node.children ? { ...node, children: sortTree(node.children, folderMeta, fileOrder) } : node,
   )
 }

@@ -1,5 +1,5 @@
 import type { SnippetSource } from '../core/resolver/types'
-import { SNIPPETS_DIR, VARIABLES_FILE } from '../core/workspace/constants'
+import { FOLDER_META_FILE, SNIPPETS_DIR, VARIABLES_FILE } from '../core/workspace/constants'
 import type { VariablesFile } from '../core/workspace/types'
 import { validateVariablesFile } from '../core/workspace/validate'
 import { listDirectory, readTextFile, writeTextFile } from './directory'
@@ -19,17 +19,33 @@ export async function writeVariablesFile(dir: FileSystemDirectoryHandle, variabl
   await writeTextFile(dir, VARIABLES_FILE, `${JSON.stringify(variables, null, 2)}\n`)
 }
 
-/** Reads every snippets/*.md file, keyed by filename stem — the identity {{> name}} resolves against. */
+async function walkSnippets(
+  dir: FileSystemDirectoryHandle,
+  entries: Array<readonly [string, string]>,
+): Promise<void> {
+  const listing = await listDirectory(dir)
+  await Promise.all(
+    listing.map(async (item) => {
+      if (item.kind === 'directory') {
+        const childHandle = await dir.getDirectoryHandle(item.name)
+        await walkSnippets(childHandle, entries)
+        return
+      }
+      if (item.name === FOLDER_META_FILE || !item.name.endsWith('.md')) return
+      const contents = await readTextFile(dir, item.name)
+      entries.push([item.name.slice(0, -3), contents])
+    }),
+  )
+}
+
+/**
+ * Reads every snippets/**\/*.md file (recursively — snippets may be organized
+ * into folders), keyed by filename stem — the identity {{> name}} resolves
+ * against, independent of which folder the snippet lives in.
+ */
 export async function readAllSnippets(dir: FileSystemDirectoryHandle): Promise<SnippetSource> {
   const snippetsHandle = await dir.getDirectoryHandle(SNIPPETS_DIR, { create: true })
-  const listing = await listDirectory(snippetsHandle)
-  const entries = await Promise.all(
-    listing
-      .filter((item) => item.kind === 'file' && item.name.endsWith('.md'))
-      .map(async (item) => {
-        const contents = await readTextFile(snippetsHandle, item.name)
-        return [item.name.slice(0, -3), contents] as const
-      }),
-  )
+  const entries: Array<readonly [string, string]> = []
+  await walkSnippets(snippetsHandle, entries)
   return Object.fromEntries(entries)
 }

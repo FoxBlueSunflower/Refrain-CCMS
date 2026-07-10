@@ -76,6 +76,24 @@ export async function pathExists(dir: FileSystemDirectoryHandle, path: string): 
   }
 }
 
+export async function directoryExists(dir: FileSystemDirectoryHandle, path: string): Promise<boolean> {
+  try {
+    await resolveDirectory(dir, splitPath(path))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Resolves a workspace-relative directory path to its handle, optionally creating it (and any missing ancestors). */
+export async function resolveDirectoryHandle(
+  root: FileSystemDirectoryHandle,
+  path: string,
+  options?: { create?: boolean },
+): Promise<FileSystemDirectoryHandle> {
+  return resolveDirectory(root, splitPath(path), options)
+}
+
 export async function deleteEntry(dir: FileSystemDirectoryHandle, path: string): Promise<void> {
   const segments = splitPath(path)
   const name = segments[segments.length - 1]
