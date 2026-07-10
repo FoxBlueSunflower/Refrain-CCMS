@@ -485,13 +485,15 @@ function DocTreeList({
     return (event: DragEvent<HTMLLIElement>) => {
       if (!draggingHere) return
       event.preventDefault()
+      event.stopPropagation()
       const zone = computeZone(event, allowInto)
       setDropIndicator({ section, path: node.path, position: zone })
     }
   }
 
   function handleDragLeave(node: DocTreeNode) {
-    return () => {
+    return (event: DragEvent<HTMLLIElement>) => {
+      event.stopPropagation()
       setDropIndicator((prev) => (prev?.section === section && prev.path === node.path ? null : prev))
     }
   }
@@ -499,6 +501,7 @@ function DocTreeList({
   function handleDrop(node: DocTreeNode, allowInto: boolean) {
     return (event: DragEvent<HTMLLIElement>) => {
       event.preventDefault()
+      event.stopPropagation()
       if (!draggingHere || !dragging) return
       const zone = computeZone(event, allowInto)
       if (zone === 'into') {
@@ -526,6 +529,7 @@ function DocTreeList({
               key={node.path}
               draggable
               onDragStart={(event) => {
+                event.stopPropagation()
                 event.dataTransfer.effectAllowed = 'move'
                 event.dataTransfer.setData('text/plain', node.path)
                 setDragging({ section, kind: 'folder', path: node.path })
@@ -608,6 +612,7 @@ function DocTreeList({
             key={node.path}
             draggable
             onDragStart={(event) => {
+              event.stopPropagation()
               event.dataTransfer.effectAllowed = 'move'
               event.dataTransfer.setData('text/plain', node.path)
               setDragging({ section, kind: 'file', path: node.path })
