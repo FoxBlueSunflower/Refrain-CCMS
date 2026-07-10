@@ -72,9 +72,11 @@ export function Sidebar({
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-gray-700 bg-gray-800 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-400">{handle.name}</h2>
-        <div className="flex shrink-0 gap-1">
+      <div className="flex flex-col gap-2">
+        <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-gray-400" title={handle.name}>
+          {handle.name}
+        </h2>
+        <div className="flex flex-wrap gap-1">
           {onOpenWhereUsed && (
             <button
               type="button"
