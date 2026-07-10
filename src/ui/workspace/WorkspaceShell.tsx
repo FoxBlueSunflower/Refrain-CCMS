@@ -14,7 +14,10 @@ import type { ConditionsFile, VariablesFile, WorkspaceConfig } from '../../core/
 import {
   appendPublishLogEntry,
   clearDirectory,
+  createFolder,
   deleteEntry,
+  deleteFolder,
+  directoryExists,
   listSnapshots,
   pathExists,
   readAllDocuments,
@@ -28,7 +31,9 @@ import {
   readVariablesFile,
   readWorkspaceConfig,
   renameFile,
+  renameFolder,
   restoreSnapshot,
+  snippetStemExists,
   writeSnapshot,
   writeTextFile,
   type SnapshotSummary,
@@ -66,6 +71,9 @@ type ModalState =
   | { kind: 'new'; entryKind: EntryKind }
   | { kind: 'rename'; entryKind: EntryKind; path: string }
   | { kind: 'delete'; entryKind: EntryKind; path: string }
+  | { kind: 'new-folder'; entryKind: EntryKind }
+  | { kind: 'rename-folder'; entryKind: EntryKind; path: string; currentTitle: string }
+  | { kind: 'delete-folder'; entryKind: EntryKind; path: string }
 
 interface OpenDocument {
   kind: EntryKind
@@ -101,22 +109,53 @@ function titleFromPath(path: string): string {
   return name.endsWith('.md') ? name.slice(0, -3) : name
 }
 
-/** Finds a free path under `baseDir` for `base`, suffixing -2, -3, ... on collision. */
-async function uniquePath(handle: FileSystemDirectoryHandle, baseDir: string, base: string): Promise<string> {
+/** Finds a free path under `baseDir`/`parentPath` for `base`, suffixing -2, -3, ... on collision. */
+async function uniquePath(
+  handle: FileSystemDirectoryHandle,
+  baseDir: string,
+  parentPath: string,
+  base: string,
+): Promise<string> {
   const stem = base.endsWith('.md') ? base.slice(0, -3) : base
-  let candidate = `${baseDir}/${stem}.md`
+  const dir = parentPath ? `${baseDir}/${parentPath}` : baseDir
+  let candidate = `${dir}/${stem}.md`
   let n = 2
   while (await pathExists(handle, candidate)) {
-    candidate = `${baseDir}/${stem}-${n}.md`
+    candidate = `${dir}/${stem}-${n}.md`
     n += 1
   }
   return candidate
+}
+
+/** Finds a free folder path under `baseDir`/`parentPath` for `base`, suffixing -2, -3, ... on collision. */
+async function uniqueFolderPath(
+  handle: FileSystemDirectoryHandle,
+  baseDir: string,
+  parentPath: string,
+  base: string,
+): Promise<string> {
+  const dir = parentPath ? `${baseDir}/${parentPath}` : baseDir
+  let candidate = `${dir}/${base}`
+  let n = 2
+  while (await directoryExists(handle, candidate)) {
+    candidate = `${dir}/${base}-${n}`
+    n += 1
+  }
+  return candidate
+}
+
+function parentFolderOf(relPath: string): string {
+  const idx = relPath.lastIndexOf('/')
+  return idx === -1 ? '' : relPath.slice(0, idx)
 }
 
 export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceShellProps) {
   const { push: pushToast } = useToasts()
   const [modal, setModal] = useState<ModalState>({ kind: 'none' })
   const [refreshToken, setRefreshToken] = useState(0)
+  // Which folder new-document/new-snippet lands in, per entry kind — kept in
+  // sync with whichever document/snippet/folder the user last clicked.
+  const [currentFolder, setCurrentFolder] = useState<Record<EntryKind, string>>({ document: '', snippet: '' })
 
   const [openDoc, setOpenDoc] = useState<OpenDocument | null>(null)
   const [liveText, setLiveText] = useState('')
@@ -452,7 +491,12 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     async (entryKind: EntryKind, title: string) => {
       try {
         const baseDir = baseDirFor(entryKind)
-        const path = await uniquePath(handle, baseDir, slugify(title) || 'untitled')
+        const stem = slugify(title) || 'untitled'
+        if (entryKind === 'snippet' && (await snippetStemExists(handle, stem))) {
+          pushToast({ kind: 'error', message: `A snippet named "${stem}" already exists.` })
+          return
+        }
+        const path = await uniquePath(handle, baseDir, currentFolder[entryKind], stem)
         await writeTextFile(handle, path, templateFor(entryKind, title))
         setModal({ kind: 'none' })
         bump()
@@ -461,7 +505,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       }
     },
-    [handle, openEntry, pushToast],
+    [handle, openEntry, pushToast, currentFolder],
   )
 
   const handleRename = useCallback(
@@ -469,13 +513,26 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
       try {
         const baseDir = baseDirFor(entryKind)
         const segments = oldRelPath.split('/')
-        segments[segments.length - 1] = withMdExtension(slugify(newTitle) || 'untitled')
+        const newStem = slugify(newTitle) || 'untitled'
+        segments[segments.length - 1] = withMdExtension(newStem)
         const newPath = `${baseDir}/${segments.join('/')}`
         const oldPath = `${baseDir}/${oldRelPath}`
-        if (newPath !== oldPath && (await pathExists(handle, newPath))) {
-          pushToast({ kind: 'error', message: `A ${labelFor(entryKind)} named "${segments[segments.length - 1]}" already exists.` })
-          return
+
+        if (newPath !== oldPath) {
+          if (entryKind === 'snippet') {
+            if (await snippetStemExists(handle, newStem, oldPath)) {
+              pushToast({ kind: 'error', message: `A snippet named "${newStem}" already exists.` })
+              return
+            }
+          } else if (await pathExists(handle, newPath)) {
+            pushToast({
+              kind: 'error',
+              message: `A ${labelFor(entryKind)} named "${segments[segments.length - 1]}" already exists.`,
+            })
+            return
+          }
         }
+
         await renameFile(handle, oldPath, newPath)
         if (activeRef.current?.fullPath === oldPath) {
           activeRef.current.fullPath = newPath
@@ -489,6 +546,54 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     },
     [handle, pushToast],
   )
+
+  const handleCreateFolder = useCallback(
+    async (entryKind: EntryKind, title: string) => {
+      try {
+        const baseDir = baseDirFor(entryKind)
+        const slug = slugify(title) || 'untitled'
+        const path = await uniqueFolderPath(handle, baseDir, currentFolder[entryKind], slug)
+        await createFolder(handle, path)
+        await renameFolder(handle, path, title)
+        setModal({ kind: 'none' })
+        bump()
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      }
+    },
+    [handle, pushToast, currentFolder],
+  )
+
+  const handleRenameFolder = useCallback(
+    async (path: string, newTitle: string) => {
+      try {
+        await renameFolder(handle, path, newTitle)
+        setModal({ kind: 'none' })
+        bump()
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      }
+    },
+    [handle, pushToast],
+  )
+
+  const handleDeleteFolder = useCallback(
+    async (entryKind: EntryKind, path: string) => {
+      try {
+        await deleteFolder(handle, path)
+        setCurrentFolder((prev) => (prev[entryKind] === path ? { ...prev, [entryKind]: '' } : prev))
+        setModal({ kind: 'none' })
+        bump()
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      }
+    },
+    [handle, pushToast],
+  )
+
+  const handleSelectFolder = useCallback((entryKind: EntryKind, path: string) => {
+    setCurrentFolder((prev) => ({ ...prev, [entryKind]: path }))
+  }, [])
 
   // TODO(future phase): warn on delete if other docs/snippets link to or embed this file
   const handleDelete = useCallback(
@@ -553,13 +658,31 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         onOpenHistory={openHistoryPanel}
         onOpenTour={() => onboardingRef.current?.replay()}
         onNewDocument={() => setModal({ kind: 'new', entryKind: 'document' })}
-        onSelectDocument={(path) => void openEntry('document', path)}
+        onNewDocumentFolder={() => setModal({ kind: 'new-folder', entryKind: 'document' })}
+        onSelectDocument={(path) => {
+          handleSelectFolder('document', parentFolderOf(path))
+          void openEntry('document', path)
+        }}
         onRenameDocument={(path) => setModal({ kind: 'rename', entryKind: 'document', path })}
         onDeleteDocument={(path) => setModal({ kind: 'delete', entryKind: 'document', path })}
+        onSelectDocumentFolder={(path) => handleSelectFolder('document', path)}
+        onRenameDocumentFolder={(path, currentTitle) =>
+          setModal({ kind: 'rename-folder', entryKind: 'document', path, currentTitle })
+        }
+        onDeleteDocumentFolder={(path) => setModal({ kind: 'delete-folder', entryKind: 'document', path })}
         onNewSnippet={() => setModal({ kind: 'new', entryKind: 'snippet' })}
-        onSelectSnippet={(path) => void openEntry('snippet', path)}
+        onNewSnippetFolder={() => setModal({ kind: 'new-folder', entryKind: 'snippet' })}
+        onSelectSnippet={(path) => {
+          handleSelectFolder('snippet', parentFolderOf(path))
+          void openEntry('snippet', path)
+        }}
         onRenameSnippet={(path) => setModal({ kind: 'rename', entryKind: 'snippet', path })}
         onDeleteSnippet={(path) => setModal({ kind: 'delete', entryKind: 'snippet', path })}
+        onSelectSnippetFolder={(path) => handleSelectFolder('snippet', path)}
+        onRenameSnippetFolder={(path, currentTitle) =>
+          setModal({ kind: 'rename-folder', entryKind: 'snippet', path, currentTitle })
+        }
+        onDeleteSnippetFolder={(path) => setModal({ kind: 'delete-folder', entryKind: 'snippet', path })}
         onOpenVariables={() => void openVariablesEditor()}
         onOpenConditions={() => void openConditionsEditor()}
         onOpenProfiles={() => void openProfilesEditor()}
@@ -658,6 +781,35 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           message={`Delete "${titleFromPath(modal.path)}"? This can't be undone from here.`}
           confirmLabel="Delete"
           onConfirm={() => void handleDelete(modal.entryKind, modal.path)}
+          onCancel={() => setModal({ kind: 'none' })}
+        />
+      )}
+
+      {modal.kind === 'new-folder' && (
+        <DocumentTitleDialog
+          heading="New folder"
+          submitLabel="Create"
+          onSubmit={(title) => void handleCreateFolder(modal.entryKind, title)}
+          onCancel={() => setModal({ kind: 'none' })}
+        />
+      )}
+
+      {modal.kind === 'rename-folder' && (
+        <DocumentTitleDialog
+          heading="Rename folder"
+          submitLabel="Rename"
+          initialValue={modal.currentTitle}
+          onSubmit={(title) => void handleRenameFolder(modal.path, title)}
+          onCancel={() => setModal({ kind: 'none' })}
+        />
+      )}
+
+      {modal.kind === 'delete-folder' && (
+        <ConfirmDialog
+          title="Delete folder"
+          message={`Delete this empty folder? This can't be undone from here.`}
+          confirmLabel="Delete"
+          onConfirm={() => void handleDeleteFolder(modal.entryKind, modal.path)}
           onCancel={() => setModal({ kind: 'none' })}
         />
       )}
