@@ -1,4 +1,6 @@
 import { type Completion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
+import { CONDITION_DIMENSIONS } from '../../core/workspace/constants'
+import type { ConditionsFile } from '../../core/workspace/types'
 
 export interface CompletionItem {
   key: string
@@ -47,5 +49,45 @@ export function createTokenCompletionSource(getItems: () => TokenCompletionItems
 
     if (options.length === 0) return null
     return { from, options, validFor: /^[\w-]*$/ }
+  }
+}
+
+const CONDITION_VALUE_PATTERN = /:::when\s+(audience|output)=([A-Za-z0-9_-]*)$/
+const CONDITION_DIMENSION_PATTERN = /:::when\s+([A-Za-z0-9_-]*)$/
+
+/**
+ * Completion source for ":::when dimension=value" blocks: offers dimension
+ * names first, then values for the chosen dimension sourced from
+ * conditions.json. `getConditions` is called on every trigger, same
+ * live-ref pattern as createTokenCompletionSource.
+ */
+export function createConditionCompletionSource(getConditions: () => ConditionsFile) {
+  return (context: CompletionContext): CompletionResult | null => {
+    const textBefore = context.state.sliceDoc(Math.max(0, context.pos - 80), context.pos)
+
+    const valueMatch = CONDITION_VALUE_PATTERN.exec(textBefore)
+    if (valueMatch) {
+      const [, dimension, partial] = valueMatch
+      const conditions = getConditions()
+      const values = conditions[dimension as keyof ConditionsFile] ?? []
+      const from = context.pos - partial.length
+      const options: Completion[] = values.map((value) => ({ label: value, type: 'constant' }))
+      if (options.length === 0) return null
+      return { from, options, validFor: /^[\w-]*$/ }
+    }
+
+    const dimensionMatch = CONDITION_DIMENSION_PATTERN.exec(textBefore)
+    if (dimensionMatch) {
+      const [, partial] = dimensionMatch
+      const from = context.pos - partial.length
+      const options: Completion[] = CONDITION_DIMENSIONS.map((dimension) => ({
+        label: dimension,
+        apply: `${dimension}=`,
+        type: 'keyword',
+      }))
+      return { from, options, validFor: /^[\w-]*$/ }
+    }
+
+    return null
   }
 }

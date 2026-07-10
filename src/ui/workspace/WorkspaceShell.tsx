@@ -104,10 +104,11 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const [index, setIndex] = useState<WorkspaceIndex>({ builtAt: '', snippets: {}, variables: {}, conditions: {} })
   const [whereUsedOpen, setWhereUsedOpen] = useState(false)
 
+  const [conditionsFile, setConditionsFile] = useState<ConditionsFile>({ audience: [], output: [] })
+
   const [publishOpen, setPublishOpen] = useState(false)
   const [workspaceConfig, setWorkspaceConfig] = useState<WorkspaceConfig | null>(null)
-  const [conditionsFile, setConditionsFile] = useState<ConditionsFile | null>(null)
-  const [publishConfigLoaded, setPublishConfigLoaded] = useState(false)
+  const [workspaceConfigLoaded, setWorkspaceConfigLoaded] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [publishResult, setPublishResult] = useState<PublishResultSummary | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
@@ -127,13 +128,15 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
   const bump = () => setRefreshToken((t) => t + 1)
 
   const reloadResolverData = useCallback(async () => {
-    const [nextVariables, nextSnippets, nextDocuments] = await Promise.all([
+    const [nextVariables, nextSnippets, nextDocuments, nextConditionsFile] = await Promise.all([
       readVariablesFile(handle),
       readAllSnippets(handle),
       readAllDocuments(handle),
+      readConditionsFile(handle),
     ])
     setVariables(nextVariables)
     setSnippets(nextSnippets)
+    setConditionsFile(nextConditionsFile)
     setVariablesLoaded(true)
 
     const nextIndex = buildWorkspaceIndex({
@@ -232,17 +235,16 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
 
   const openPublishPanel = useCallback(async () => {
     setPublishOpen(true)
-    if (!publishConfigLoaded) {
-      const [configResult, nextConditionsFile] = await Promise.all([readWorkspaceConfig(handle), readConditionsFile(handle)])
+    if (!workspaceConfigLoaded) {
+      const configResult = await readWorkspaceConfig(handle)
       setWorkspaceConfig(configResult.ok ? configResult.value : null)
-      setConditionsFile(nextConditionsFile)
-      setPublishConfigLoaded(true)
+      setWorkspaceConfigLoaded(true)
     }
-  }, [handle, publishConfigLoaded])
+  }, [handle, workspaceConfigLoaded])
 
   const handlePublish = useCallback(
     async (profileName: string) => {
-      if (!workspaceConfig || !conditionsFile) return
+      if (!workspaceConfig) return
       const profile = workspaceConfig.publishProfiles[profileName]
       if (!profile) return
 
@@ -430,6 +432,7 @@ export function WorkspaceShell({ handle }: WorkspaceShellProps) {
               currentRelPath={openDoc.kind === 'document' ? openDoc.relPath : null}
               resolveContext={resolveContext}
               completionItems={completionItems}
+              conditionsFile={conditionsFile}
               onChange={handleBufferChange}
               onSave={handleExplicitSave}
               onNavigate={(relPath) => void handleNavigateFromPreview(relPath)}

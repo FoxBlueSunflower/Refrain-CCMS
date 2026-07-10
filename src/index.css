@@ -96,3 +96,27 @@ body {
   padding: 0 0.35em;
   font-size: 0.9em;
 }
+
+/*
+ * Preview-only, purely cosmetic labels for ":::when dimension=value ... :::"
+ * blocks (see src/core/builder/conditions.ts's annotateConditionBlocks).
+ * Not shown in the published site — those CSS rules live in
+ * src/core/builder/html-template.ts, entirely separate from this file.
+ */
+.rf-condition-tag {
+  margin: 1em 0 0.25em;
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6d28d9;
+}
+
+.rf-condition-tag::before {
+  content: 'Condition: ' attr(data-when);
+}
+
+.rf-condition-end {
+  margin: 0.25em 0 1em;
+  border-top: 1px dashed #d1d5db;
+}
