@@ -174,5 +174,5 @@ forked_from_snapshot: null # history timestamp it was copied at
 1. Truth lives in the user's folder — ordinary files, readable in Notepad.
 2. Browser storage holds only the folder-permission handle + UI prefs; wiping it costs one re-pick of the folder.
 3. `.app/history/` snapshots protect against fat-fingered edits.
-4. Onboarding recommends placing the workspace inside an already-synced folder (Dropbox/Drive/OneDrive) or a git repo — inheriting professional-grade backup for free.
+4. Onboarding recommends placing the workspace inside a folder already synced by the Dropbox/Google Drive/OneDrive desktop app (or a git repo) — inheriting professional-grade backup for free, with no integration needed on our end.
 5. Marketing line this earns: "Your docs are markdown files in your folder. Cancel nothing, export nothing — you already have everything."

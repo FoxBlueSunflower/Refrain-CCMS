@@ -4,7 +4,7 @@ import { hasSeenSyncNudge, hasSeenTour, markSyncNudgeSeen, markTourSeen } from '
 import { WelcomeTour } from './WelcomeTour'
 
 const SYNC_NUDGE_MESSAGE =
-  "Tip: put this folder inside Dropbox, Google Drive, OneDrive, or a git repo. Refrain doesn't need any of them — but if it's already there, you get automatic backups for free."
+  "Tip: install the Dropbox, Google Drive, or OneDrive desktop app, then save this folder inside the location it backs up. Refrain doesn't need any of them — but if it's already there, you get automatic backups for free."
 
 export interface OnboardingControllerHandle {
   replay: () => void
