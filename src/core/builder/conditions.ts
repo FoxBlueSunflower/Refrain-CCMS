@@ -5,6 +5,14 @@ import type { BuildWarning } from './types'
 const OPEN_PATTERN = /^:::when\s+([A-Za-z0-9_-]+)=([A-Za-z0-9_-]+)\s*$/
 const CLOSE_PATTERN = /^:::\s*$/
 
+/** Scans forward from `fromIndex` for the next bare ":::" close fence, or -1 if none is found before EOF. */
+function findCloseFence(lines: string[], fromIndex: number): number {
+  for (let j = fromIndex; j < lines.length; j++) {
+    if (CLOSE_PATTERN.test(lines[j].trim())) return j
+  }
+  return -1
+}
+
 /**
  * Whole-page frontmatter `when:` filtering (SPEC.md) is deliberately out of
  * scope for Phase 5 — only the block-level ":::when ... :::" syntax below is
@@ -39,14 +47,7 @@ export function filterConditions(
 
     const [, dimension, value] = openMatch
     const openLine = i + 1
-
-    let closeIndex = -1
-    for (let j = i + 1; j < lines.length; j++) {
-      if (CLOSE_PATTERN.test(lines[j].trim())) {
-        closeIndex = j
-        break
-      }
-    }
+    const closeIndex = findCloseFence(lines, i + 1)
 
     if (closeIndex === -1) {
       warnings.push({
@@ -86,4 +87,58 @@ export function filterConditions(
   }
 
   return { text: output.join('\n'), warnings }
+}
+
+function escapeAttr(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+}
+
+/**
+ * Preview-only, purely cosmetic: wraps each well-formed ":::when
+ * dimension=value ... :::" block with empty leaf marker <div>s carrying the
+ * tag as a data attribute, so the live preview can visually label block
+ * boundaries without touching the markdown body between them — a raw HTML
+ * block wrapping the body could suppress inline markdown parsing inside it,
+ * so these are empty siblings, not a wrapper.
+ *
+ * Each marker is followed by a blank line: per CommonMark, a block-level
+ * HTML tag like <div> starts its own HTML block that swallows every
+ * following line verbatim (no inline markdown parsing) until a blank line
+ * is reached. Without that blank line, the body between the two markers —
+ * and everything after the closing marker — would get absorbed into raw,
+ * unparsed HTML instead of rendering as markdown.
+ *
+ * Does not validate the tag against conditions.json and never filters
+ * content — this never runs on the publish path; filterConditions above
+ * remains the sole source of truth for what's valid and what's included in
+ * a given profile. An unclosed block is left completely untouched.
+ */
+export function annotateConditionBlocks(body: string): string {
+  const lines = body.split(/\r\n|\n/)
+  const output: string[] = []
+
+  let i = 0
+  while (i < lines.length) {
+    const openMatch = OPEN_PATTERN.exec(lines[i].trim())
+    if (!openMatch) {
+      output.push(lines[i])
+      i += 1
+      continue
+    }
+
+    const [, dimension, value] = openMatch
+    const closeIndex = findCloseFence(lines, i + 1)
+    if (closeIndex === -1) {
+      output.push(lines[i])
+      i += 1
+      continue
+    }
+
+    output.push(`<div class="rf-condition-tag" data-when="${escapeAttr(`${dimension}=${value}`)}"></div>`, '')
+    for (let k = i + 1; k < closeIndex; k++) output.push(lines[k])
+    output.push('<div class="rf-condition-end"></div>', '')
+    i = closeIndex + 1
+  }
+
+  return output.join('\n')
 }

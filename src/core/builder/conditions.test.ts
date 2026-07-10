@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConditionsFile, PublishProfile } from '../workspace/types'
-import { filterConditions } from './conditions'
+import { annotateConditionBlocks, filterConditions } from './conditions'
 
 const conditionsFile: ConditionsFile = { audience: ['customer', 'internal'], output: ['web'] }
 
@@ -75,5 +75,53 @@ describe('filterConditions', () => {
     const result = filterConditions(text, 'docs/index.md', profile(), conditionsFile)
     expect(result.warnings).toEqual([])
     expect(result.text).toBe(text)
+  })
+})
+
+describe('annotateConditionBlocks', () => {
+  it('wraps a well-formed block with leaf markers carrying the tag, keeping the body intact', () => {
+    const text = 'Before.\n:::when audience=internal\nInternal note.\n:::\nAfter.'
+    const result = annotateConditionBlocks(text)
+    expect(result).toBe(
+      [
+        'Before.',
+        '<div class="rf-condition-tag" data-when="audience=internal"></div>',
+        '',
+        'Internal note.',
+        '<div class="rf-condition-end"></div>',
+        '',
+        'After.',
+      ].join('\n'),
+    )
+  })
+
+  it('surrounds each marker with a blank line so it forms its own HTML block instead of swallowing the body', () => {
+    // Per CommonMark, a block-level <div> tag continues consuming lines verbatim
+    // (no inline markdown parsing) until a blank line — without one, "Internal
+    // note." would never become its own paragraph.
+    const result = annotateConditionBlocks(':::when audience=internal\nInternal note.\n:::')
+    const lines = result.split('\n')
+    const tagIndex = lines.findIndex((line) => line.includes('rf-condition-tag'))
+    const endIndex = lines.findIndex((line) => line.includes('rf-condition-end'))
+    expect(lines[tagIndex + 1]).toBe('')
+    expect(lines[endIndex + 1]).toBe('')
+  })
+
+  it('still labels a block with an unrecognized dimension or value (no validation here)', () => {
+    const text = ':::when platform=ios\nSecret.\n:::'
+    const result = annotateConditionBlocks(text)
+    expect(result).toContain('data-when="platform=ios"')
+    expect(result).toContain('Secret.')
+  })
+
+  it('leaves an unclosed block completely untouched', () => {
+    const text = 'Start.\n:::when audience=internal\nDangling.'
+    const result = annotateConditionBlocks(text)
+    expect(result).toBe(text)
+  })
+
+  it('leaves a document with no condition blocks unchanged', () => {
+    const text = 'Just plain markdown, no tokens here.\n'
+    expect(annotateConditionBlocks(text)).toBe(text)
   })
 })

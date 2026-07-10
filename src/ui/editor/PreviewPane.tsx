@@ -1,5 +1,6 @@
 import { useMemo, type MouseEvent } from 'react'
 import { marked } from 'marked'
+import { annotateConditionBlocks } from '../../core/builder/conditions'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
 import { resolveDocument } from '../../core/resolver/resolve'
 import type { ResolveContext } from '../../core/resolver/types'
@@ -16,7 +17,8 @@ interface PreviewPaneProps {
 
 export function PreviewPane({ text, currentRelPath, onNavigate, resolveContext }: PreviewPaneProps) {
   const parsed = useMemo(() => parseFrontmatter(text), [text])
-  const resolved = useMemo(() => resolveDocument(parsed.body, resolveContext), [parsed.body, resolveContext])
+  const annotatedBody = useMemo(() => annotateConditionBlocks(parsed.body), [parsed.body])
+  const resolved = useMemo(() => resolveDocument(annotatedBody, resolveContext), [annotatedBody, resolveContext])
   const html = useMemo(() => marked.parse(resolved.text, { async: false }), [resolved.text])
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {

@@ -1,10 +1,13 @@
 import { useRef, useState } from 'react'
 import type { ResolveContext } from '../../core/resolver/types'
+import type { ConditionsFile } from '../../core/workspace/types'
 import { CodeMirrorEditor, type CodeMirrorEditorHandle } from './CodeMirrorEditor'
 import type { TokenCompletionItems } from './completions'
 import { PreviewPane } from './PreviewPane'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+const CONDITION_DIMENSION_LIST = ['audience', 'output'] as const
 
 interface EditorPaneProps {
   title: string
@@ -17,6 +20,7 @@ interface EditorPaneProps {
   currentRelPath: string | null
   resolveContext: ResolveContext
   completionItems: TokenCompletionItems
+  conditionsFile: ConditionsFile
   onChange: (text: string) => void
   onSave: () => void
   onNavigate: (relPath: string) => void
@@ -40,6 +44,7 @@ export function EditorPane({
   currentRelPath,
   resolveContext,
   completionItems,
+  conditionsFile,
   onChange,
   onSave,
   onNavigate,
@@ -48,12 +53,18 @@ export function EditorPane({
   const editorRef = useRef<CodeMirrorEditorHandle | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
 
-  function insert(text: string) {
-    editorRef.current?.insertAtCursor(text)
+  function insert(text: string, caretOffset?: number) {
+    editorRef.current?.insertAtCursor(text, caretOffset)
     setPaletteOpen(false)
   }
 
+  function insertCondition(dimension: string, value: string) {
+    const opening = `:::when ${dimension}=${value}\n`
+    insert(`${opening}\n:::\n`, opening.length)
+  }
+
   const hasItems = completionItems.variables.length > 0 || completionItems.snippets.length > 0
+  const hasConditions = CONDITION_DIMENSION_LIST.some((dimension) => conditionsFile[dimension].length > 0)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gray-800">
@@ -91,7 +102,7 @@ export function EditorPane({
                     </div>
                   )}
                   {completionItems.snippets.length > 0 && (
-                    <div>
+                    <div className="mb-2">
                       <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Snippets</p>
                       {completionItems.snippets.map((s) => (
                         <button
@@ -107,6 +118,22 @@ export function EditorPane({
                       ))}
                     </div>
                   )}
+                  <div>
+                    <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Conditions</p>
+                    {!hasConditions && <p className="px-2 py-1 text-xs text-gray-400">No condition values yet.</p>}
+                    {CONDITION_DIMENSION_LIST.flatMap((dimension) =>
+                      conditionsFile[dimension].map((value) => (
+                        <button
+                          key={`${dimension}=${value}`}
+                          type="button"
+                          className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                          onClick={() => insertCondition(dimension, value)}
+                        >
+                          {`:::when ${dimension}=${value}`}
+                        </button>
+                      )),
+                    )}
+                  </div>
                 </div>
               </>
             )}
@@ -124,6 +151,7 @@ export function EditorPane({
             onChange={onChange}
             onSave={onSave}
             completionItems={completionItems}
+            conditionsFile={conditionsFile}
           />
         </div>
         <div className="min-h-0 flex-1">

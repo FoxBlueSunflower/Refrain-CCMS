@@ -4,7 +4,8 @@ import { EditorState } from '@codemirror/state'
 import { keymap } from '@codemirror/view'
 import { markdown } from '@codemirror/lang-markdown'
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
-import { createTokenCompletionSource, type TokenCompletionItems } from './completions'
+import type { ConditionsFile } from '../../core/workspace/types'
+import { createConditionCompletionSource, createTokenCompletionSource, type TokenCompletionItems } from './completions'
 
 interface CodeMirrorEditorProps {
   /** Stable identity of the open file — the editor is rebuilt only when this changes. */
@@ -17,15 +18,22 @@ interface CodeMirrorEditorProps {
   onSave: () => void
   /** Variables & snippets available for {{ and {{> autocomplete. Read live via a ref, not rebuilt per keystroke. */
   completionItems: TokenCompletionItems
+  /** Condition dimensions/values available for :::when autocomplete. Read live via a ref, not rebuilt per keystroke. */
+  conditionsFile: ConditionsFile
 }
 
 export interface CodeMirrorEditorHandle {
-  /** Inserts `text` at the current cursor position (or replaces the selection) and refocuses the editor. */
-  insertAtCursor: (text: string) => void
+  /**
+   * Inserts `text` at the current cursor position (or replaces the
+   * selection) and refocuses the editor. The cursor lands after the
+   * inserted text by default; pass `caretOffset` to land it partway through
+   * instead (e.g. on a blank body line inside a multi-line template).
+   */
+  insertAtCursor: (text: string, caretOffset?: number) => void
 }
 
 export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEditorProps>(function CodeMirrorEditor(
-  { path, initialValue, onChange, onSave, completionItems },
+  { path, initialValue, onChange, onSave, completionItems, conditionsFile },
   forwardedRef,
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -33,6 +41,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
   const onChangeRef = useRef(onChange)
   const onSaveRef = useRef(onSave)
   const completionItemsRef = useRef(completionItems)
+  const conditionsFileRef = useRef(conditionsFile)
 
   useEffect(() => {
     onChangeRef.current = onChange
@@ -46,14 +55,18 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
     completionItemsRef.current = completionItems
   }, [completionItems])
 
+  useEffect(() => {
+    conditionsFileRef.current = conditionsFile
+  }, [conditionsFile])
+
   useImperativeHandle(forwardedRef, () => ({
-    insertAtCursor: (text: string) => {
+    insertAtCursor: (text: string, caretOffset?: number) => {
       const view = viewRef.current
       if (!view) return
       const { from, to } = view.state.selection.main
       view.dispatch({
         changes: { from, to, insert: text },
-        selection: { anchor: from + text.length },
+        selection: { anchor: from + (caretOffset ?? text.length) },
       })
       view.focus()
     },
@@ -67,7 +80,12 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
       extensions: [
         minimalSetup,
         markdown(),
-        autocompletion({ override: [createTokenCompletionSource(() => completionItemsRef.current)] }),
+        autocompletion({
+          override: [
+            createTokenCompletionSource(() => completionItemsRef.current),
+            createConditionCompletionSource(() => conditionsFileRef.current),
+          ],
+        }),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString())
