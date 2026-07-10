@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ConditionDiscrepancy, PublishLogEntry, SnapshotKind, VariableDiscrepancy } from '../../core/snapshots/types'
 import type { SnapshotSummary } from '../../fs'
+import { EmptyState } from '../shared/EmptyState'
 import { ConfirmDialog } from './ConfirmDialog'
 
 interface HistoryPanelProps {
@@ -8,7 +9,6 @@ interface HistoryPanelProps {
   publishLog: PublishLogEntry[]
   snapshotting: boolean
   restoring: boolean
-  error: string | null
   discrepancies: { variables: VariableDiscrepancy[]; conditions: ConditionDiscrepancy[] } | null
   onSaveNow: () => void
   onRestore: (snapshotName: string) => void
@@ -45,7 +45,6 @@ export function HistoryPanel({
   publishLog,
   snapshotting,
   restoring,
-  error,
   discrepancies,
   onSaveNow,
   onRestore,
@@ -82,8 +81,6 @@ export function HistoryPanel({
           </div>
 
           <div className="flex flex-col gap-3 p-4">
-            {error && <p className="text-sm text-red-400">{error}</p>}
-
             {discrepancies && (
               <div className="rounded border border-gray-700 bg-gray-900/60 p-3 text-xs text-gray-300">
                 <p className="mb-1 font-semibold text-gray-100">Restored.</p>
@@ -103,9 +100,10 @@ export function HistoryPanel({
             )}
 
             {snapshots.length === 0 ? (
-              <p className="text-sm text-gray-400">
-                No snapshots yet — publish or take a save point to start building history.
-              </p>
+              <EmptyState
+                title="No snapshots yet"
+                description="Publish or take a save point to start building history."
+              />
             ) : (
               <ul className="max-h-96 space-y-2 overflow-auto">
                 {snapshots.map((snapshot) => {
