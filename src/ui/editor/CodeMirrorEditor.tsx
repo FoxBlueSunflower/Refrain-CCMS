@@ -9,6 +9,8 @@ import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
 import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
 import { createConditionCompletionSource, createTokenCompletionSource, type TokenCompletionItems } from './completions'
+import { buildConditionInsertion } from './conditionEditing'
+import { createConditionHighlightPlugin } from './conditionHighlightPlugin'
 import { createLinkPillPlugin, createPillPlugin, refreshPillsEffect } from './pillPlugin'
 
 // Overrides CodeMirror's default light-mode link/URL color (a dark indigo,
@@ -46,6 +48,12 @@ export interface CodeMirrorEditorHandle {
    * instead (e.g. on a blank body line inside a multi-line template).
    */
   insertAtCursor: (text: string, caretOffset?: number) => void
+  /**
+   * Applies a ":::when dimension=value" condition to the current selection
+   * (Phase 8e): wraps the selected text in bare fence lines, or — when
+   * nothing is selected — inserts a blank scaffold, same as before.
+   */
+  wrapSelectionWithCondition: (dimension: string, value: string) => void
 }
 
 export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEditorProps>(function CodeMirrorEditor(
@@ -104,6 +112,17 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
       })
       view.focus()
     },
+    wrapSelectionWithCondition: (dimension: string, value: string) => {
+      const view = viewRef.current
+      if (!view) return
+      const { from, to } = view.state.selection.main
+      const { insertText, cursorPos } = buildConditionInsertion(view.state.doc.toString(), from, to, dimension, value)
+      view.dispatch({
+        changes: { from, to, insert: insertText },
+        selection: { anchor: from + cursorPos },
+      })
+      view.focus()
+    },
   }))
 
   useEffect(() => {
@@ -123,6 +142,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
         }),
         createPillPlugin(() => resolveContextRef.current),
         createLinkPillPlugin(() => ({ currentRelPath: currentRelPathRef.current, documentPaths: documentPathsRef.current })),
+        createConditionHighlightPlugin(),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString())
@@ -168,6 +188,37 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
             verticalAlign: 'bottom',
           },
           '.rf-pill-broken': { backgroundColor: '#450a0a', color: '#fca5a5', border: '1px dashed #b91c1c' },
+          // Phase 8e: ":::when dimension=value ... :::" block highlight. Fence
+          // lines are muted/small (so a document doesn't turn into a wall of
+          // raw ::: markers) with a colored left border; body lines get a
+          // full-width tinted background. Color is picked per dimension=value
+          // tag from a small rotating palette (see conditionHighlightPlugin.ts)
+          // so adjacent, differently-tagged blocks stay visually distinct.
+          '.rf-condition-fence': {
+            fontSize: '0.85em',
+            color: '#9ca3af',
+            borderLeftWidth: '3px',
+            borderLeftStyle: 'solid',
+            paddingLeft: '6px',
+          },
+          '.rf-condition-body': { borderLeftWidth: '3px', borderLeftStyle: 'solid', paddingLeft: '6px' },
+          '.rf-condition-color-0.rf-condition-fence': { borderLeftColor: '#b45309' },
+          '.rf-condition-color-0.rf-condition-body': { backgroundColor: '#451a0333', borderLeftColor: '#b45309' },
+          '.rf-condition-color-1.rf-condition-fence': { borderLeftColor: '#a21caf' },
+          '.rf-condition-color-1.rf-condition-body': { backgroundColor: '#4a044e33', borderLeftColor: '#a21caf' },
+          '.rf-condition-color-2.rf-condition-fence': { borderLeftColor: '#65a30d' },
+          '.rf-condition-color-2.rf-condition-body': { backgroundColor: '#1a2e0533', borderLeftColor: '#65a30d' },
+          '.rf-condition-color-3.rf-condition-fence': { borderLeftColor: '#be123c' },
+          '.rf-condition-color-3.rf-condition-body': { backgroundColor: '#4c051933', borderLeftColor: '#be123c' },
+          '.rf-condition-remove': {
+            marginLeft: '8px',
+            padding: '0 4px',
+            borderRadius: '4px',
+            color: '#9ca3af',
+            cursor: 'pointer',
+            fontSize: '0.8em',
+          },
+          '.rf-condition-remove:hover': { backgroundColor: '#374151', color: '#f3f4f6' },
         }),
       ],
     })

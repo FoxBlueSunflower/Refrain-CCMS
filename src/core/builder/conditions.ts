@@ -88,6 +88,51 @@ export function filterConditions(
   return { text: output.join('\n'), warnings }
 }
 
+export interface ConditionBlockRange {
+  dimension: string
+  value: string
+  /** 0-based line index of the ":::when dimension=value" fence line. */
+  openLine: number
+  /** 0-based line index of the closing ":::" fence line. */
+  closeLine: number
+}
+
+/**
+ * Scans `text` for well-formed ":::when dimension=value ... :::" blocks,
+ * returning each one's fence line indices and parsed tag. Does not validate
+ * dimension/value against conditions.json — that's filterConditions's job —
+ * this only reports syntactically well-formed blocks, since callers like the
+ * editor's highlight decoration (src/ui/editor/conditionHighlightPlugin.ts)
+ * want to highlight a block a writer just typed before it's necessarily
+ * "known." An unclosed block is omitted, matching annotateConditionBlocks's
+ * "leave completely untouched" treatment of the same case.
+ */
+export function findConditionBlocks(text: string): ConditionBlockRange[] {
+  const lines = text.split(/\r\n|\n/)
+  const blocks: ConditionBlockRange[] = []
+
+  let i = 0
+  while (i < lines.length) {
+    const openMatch = OPEN_PATTERN.exec(lines[i].trim())
+    if (!openMatch) {
+      i += 1
+      continue
+    }
+
+    const [, dimension, value] = openMatch
+    const closeIndex = findCloseFence(lines, i + 1)
+    if (closeIndex === -1) {
+      i += 1
+      continue
+    }
+
+    blocks.push({ dimension, value, openLine: i, closeLine: closeIndex })
+    i = closeIndex + 1
+  }
+
+  return blocks
+}
+
 function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 }

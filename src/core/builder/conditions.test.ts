@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConditionsFile, PublishProfile } from '../workspace/types'
-import { annotateConditionBlocks, filterConditions } from './conditions'
+import { annotateConditionBlocks, filterConditions, findConditionBlocks } from './conditions'
 
 const conditionsFile: ConditionsFile = { audience: ['customer', 'internal'], output: ['web'] }
 
@@ -140,5 +140,34 @@ describe('annotateConditionBlocks', () => {
   it('leaves a document with no condition blocks unchanged', () => {
     const text = 'Just plain markdown, no tokens here.\n'
     expect(annotateConditionBlocks(text)).toBe(text)
+  })
+})
+
+describe('findConditionBlocks', () => {
+  it('finds a single well-formed block and its fence line indices', () => {
+    const text = 'Before.\n:::when audience=internal\nInternal note.\n:::\nAfter.'
+    expect(findConditionBlocks(text)).toEqual([{ dimension: 'audience', value: 'internal', openLine: 1, closeLine: 3 }])
+  })
+
+  it('finds multiple independent blocks in one document', () => {
+    const text = ':::when audience=foo\nA.\n:::\nMiddle.\n:::when audience=bar\nB.\n:::'
+    expect(findConditionBlocks(text)).toEqual([
+      { dimension: 'audience', value: 'foo', openLine: 0, closeLine: 2 },
+      { dimension: 'audience', value: 'bar', openLine: 4, closeLine: 6 },
+    ])
+  })
+
+  it('omits an unclosed block', () => {
+    const text = 'Start.\n:::when audience=internal\nDangling.'
+    expect(findConditionBlocks(text)).toEqual([])
+  })
+
+  it('reports a block whose dimension/value is not in conditions.json (well-formedness only, no validation)', () => {
+    const text = ':::when platform=ios\nSecret.\n:::'
+    expect(findConditionBlocks(text)).toEqual([{ dimension: 'platform', value: 'ios', openLine: 0, closeLine: 2 }])
+  })
+
+  it('returns an empty array for a document with no condition blocks', () => {
+    expect(findConditionBlocks('Just plain markdown, no tokens here.\n')).toEqual([])
   })
 })
