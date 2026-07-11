@@ -9,7 +9,7 @@ import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
 import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
 import { createConditionCompletionSource, createTokenCompletionSource, type TokenCompletionItems } from './completions'
-import { createPillPlugin, refreshPillsEffect } from './pillPlugin'
+import { createLinkPillPlugin, createPillPlugin, refreshPillsEffect } from './pillPlugin'
 
 // Overrides CodeMirror's default light-mode link/URL color (a dark indigo,
 // `#219`), which is nearly illegible against this editor's dark background.
@@ -32,6 +32,10 @@ interface CodeMirrorEditorProps {
   conditionsFile: ConditionsFile
   /** Variables & snippets used to render {{variable_name}} pills. Read live via a ref; changes also trigger an in-place pill refresh. */
   resolveContext: ResolveContext
+  /** Relative to the workspace's docs/ folder; null when editing a snippet. Used to resolve relative links for link-pill broken checks. */
+  currentRelPath: string | null
+  /** All known document paths, relative to docs/, used to detect broken internal links. Read live via a ref; changes also trigger an in-place pill refresh. */
+  documentPaths: ReadonlySet<string>
 }
 
 export interface CodeMirrorEditorHandle {
@@ -45,7 +49,7 @@ export interface CodeMirrorEditorHandle {
 }
 
 export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEditorProps>(function CodeMirrorEditor(
-  { path, initialValue, onChange, onSave, completionItems, conditionsFile, resolveContext },
+  { path, initialValue, onChange, onSave, completionItems, conditionsFile, resolveContext, currentRelPath, documentPaths },
   forwardedRef,
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -55,6 +59,8 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
   const completionItemsRef = useRef(completionItems)
   const conditionsFileRef = useRef(conditionsFile)
   const resolveContextRef = useRef(resolveContext)
+  const currentRelPathRef = useRef(currentRelPath)
+  const documentPathsRef = useRef(documentPaths)
 
   useEffect(() => {
     onChangeRef.current = onChange
@@ -76,6 +82,16 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
     resolveContextRef.current = resolveContext
     viewRef.current?.dispatch({ effects: refreshPillsEffect.of(null) })
   }, [resolveContext])
+
+  useEffect(() => {
+    currentRelPathRef.current = currentRelPath
+    viewRef.current?.dispatch({ effects: refreshPillsEffect.of(null) })
+  }, [currentRelPath])
+
+  useEffect(() => {
+    documentPathsRef.current = documentPaths
+    viewRef.current?.dispatch({ effects: refreshPillsEffect.of(null) })
+  }, [documentPaths])
 
   useImperativeHandle(forwardedRef, () => ({
     insertAtCursor: (text: string, caretOffset?: number) => {
@@ -106,6 +122,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
           ],
         }),
         createPillPlugin(() => resolveContextRef.current),
+        createLinkPillPlugin(() => ({ currentRelPath: currentRelPathRef.current, documentPaths: documentPathsRef.current })),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString())
@@ -139,6 +156,17 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
           },
           '.rf-pill-variable': { backgroundColor: '#312e81', color: '#c7d2fe', border: '1px solid #4c1d95' },
           '.rf-pill-snippet': { backgroundColor: '#134e4a', color: '#99f6e4', border: '1px solid #0f766e' },
+          '.rf-pill-link': {
+            backgroundColor: '#0c4a6e',
+            color: '#7dd3fc',
+            border: '1px solid #0369a1',
+            display: 'inline-block',
+            maxWidth: '240px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            verticalAlign: 'bottom',
+          },
           '.rf-pill-broken': { backgroundColor: '#450a0a', color: '#fca5a5', border: '1px dashed #b91c1c' },
         }),
       ],

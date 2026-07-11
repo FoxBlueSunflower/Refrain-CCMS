@@ -103,3 +103,21 @@ export function resolveRelativeDocLink(currentRelPath: string, href: string): st
   const target = resolved.join('/')
   return target.endsWith('.md') ? target : null
 }
+
+export type LinkClassification = 'external' | 'anchor' | 'internal-ok' | 'internal-broken' | 'unresolvable'
+
+/**
+ * Classifies a markdown link href for editor pill rendering. `currentRelPath`
+ * is null when the link is inside an open snippet (snippets have no folder
+ * position to resolve relative links against, so internal links there can't
+ * be checked — see 'unresolvable', distinct from 'internal-broken' since it's
+ * not a claim the target is missing, just that it can't be verified here).
+ */
+export function classifyLink(href: string, currentRelPath: string | null, documentPaths: ReadonlySet<string>): LinkClassification {
+  if (!href || href.startsWith('#')) return 'anchor'
+  if (isExternalHref(href)) return 'external'
+  if (currentRelPath === null) return 'unresolvable'
+  const resolved = resolveRelativeDocLink(currentRelPath, href)
+  if (resolved === null) return 'internal-broken'
+  return documentPaths.has(resolved) ? 'internal-ok' : 'internal-broken'
+}

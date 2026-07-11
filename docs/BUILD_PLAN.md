@@ -214,6 +214,21 @@ here.
       "heading" actions. Sequence or gate this accordingly if 8f ships
       before 9a
 
+### 8g. Link pills
+Same pattern as 8b/8c for standard markdown `[text](url)` links, with
+distinct pill styling from variable and snippet pills. External links and
+internal doc-relative links both pill; internal links additionally get a
+broken-link check (target document doesn't exist in docs/) since that's
+verifiable locally, unlike external URLs.
+**Accept when:**
+- [x] Pills render correctly for external, valid-internal, and
+      broken-internal links, visually distinct from each other and from
+      variable/snippet pills
+- [x] Underlying saved file content is unchanged plain-text — pills are
+      a rendering layer only
+- [x] A link whose text or URL contains a `{{variable}}`/`{{> snippet}}`
+      token is left unpilled so the token inside still pills correctly
+
 ---
 
 ## PHASE 9 — Publications (single-user Paligo layer)
