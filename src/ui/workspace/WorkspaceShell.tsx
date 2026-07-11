@@ -82,7 +82,7 @@ interface OpenDocument {
   kind: EntryKind
   relPath: string
   fullPath: string
-  /** True only when this file was just written by "New Document"/"New Snippet" this session — drives the frontmatter panel's default expanded state. */
+  /** True only for the specific openEntry call made right after "New Document"/"New Snippet" — drives the frontmatter panel's default expanded state for that open. Resets to false on any later re-open of the same file (e.g. switching away and back), by design — see BUILD_PLAN.md Phase 8a. */
   justCreated: boolean
 }
 

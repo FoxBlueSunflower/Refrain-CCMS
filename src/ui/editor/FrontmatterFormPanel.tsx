@@ -4,7 +4,10 @@ import { FRONTMATTER_SCHEMA, isKnownFrontmatterKey, type FrontmatterEntryKind } 
 
 interface CustomRow {
   id: string
+  /** Live display text — may momentarily not match what's actually on disk (see committedKey). */
   key: string
+  /** The key this row last successfully wrote to the document, or '' if never committed. Used as the "old key" for renames and to detect collisions, instead of trusting mid-edit display text. */
+  committedKey: string
   value: string
 }
 
@@ -38,7 +41,7 @@ function displayValue(value: FrontmatterScalar | undefined): string {
 function seedCustomRows(entryKind: FrontmatterEntryKind, frontmatter: Record<string, FrontmatterScalar>): CustomRow[] {
   return Object.entries(frontmatter)
     .filter(([key]) => !isKnownFrontmatterKey(entryKind, key))
-    .map(([key, value]) => ({ id: crypto.randomUUID(), key, value: displayValue(value) }))
+    .map(([key, value]) => ({ id: crypto.randomUUID(), key, committedKey: key, value: displayValue(value) }))
 }
 
 export function FrontmatterFormPanel({
@@ -54,34 +57,47 @@ export function FrontmatterFormPanel({
   const [customRows, setCustomRows] = useState<CustomRow[]>(() => seedCustomRows(entryKind, frontmatter))
   const expanded = !collapsed || warnings.length > 0
 
+  /** True when `key` is already claimed by a known schema field or by another row's committed/in-progress key. */
+  function keyIsTaken(key: string, excludeRowId: string): boolean {
+    if (isKnownFrontmatterKey(entryKind, key)) return true
+    return customRows.some((r) => r.id !== excludeRowId && (r.committedKey || r.key.trim()) === key)
+  }
+
   function updateCustomKey(id: string, newKey: string) {
     const row = customRows.find((r) => r.id === id)
     if (!row) return
-    const oldKey = row.key.trim()
     const trimmedNewKey = newKey.trim()
+
+    // Always reflect what the user typed, even mid-collision — losing
+    // keystrokes would be worse than a momentarily-uncommitted display value.
     setCustomRows((prev) => prev.map((r) => (r.id === id ? { ...r, key: newKey } : r)))
-    if (!trimmedNewKey) return
-    if (oldKey) onKeyRename(oldKey, trimmedNewKey, coerceScalar(row.value))
+
+    if (!trimmedNewKey || trimmedNewKey === row.committedKey) return
+    // Refuse to commit a rename/create that would silently overwrite another
+    // key's value — leave the on-disk state untouched until the user picks a
+    // name that isn't already taken (surfaced via the conflict message below).
+    if (keyIsTaken(trimmedNewKey, id)) return
+
+    if (row.committedKey) onKeyRename(row.committedKey, trimmedNewKey, coerceScalar(row.value))
     else onFieldChange(trimmedNewKey, coerceScalar(row.value))
+    setCustomRows((prev) => prev.map((r) => (r.id === id ? { ...r, committedKey: trimmedNewKey } : r)))
   }
 
   function updateCustomValue(id: string, newValue: string) {
     const row = customRows.find((r) => r.id === id)
     if (!row) return
     setCustomRows((prev) => prev.map((r) => (r.id === id ? { ...r, value: newValue } : r)))
-    const key = row.key.trim()
-    if (key) onFieldChange(key, coerceScalar(newValue))
+    if (row.committedKey) onFieldChange(row.committedKey, coerceScalar(newValue))
   }
 
   function addCustomRow() {
-    setCustomRows((prev) => [...prev, { id: crypto.randomUUID(), key: '', value: '' }])
+    setCustomRows((prev) => [...prev, { id: crypto.randomUUID(), key: '', committedKey: '', value: '' }])
   }
 
   function removeCustomRow(id: string) {
     const row = customRows.find((r) => r.id === id)
     setCustomRows((prev) => prev.filter((r) => r.id !== id))
-    const key = row?.key.trim()
-    if (key) onFieldDelete(key)
+    if (row?.committedKey) onFieldDelete(row.committedKey)
   }
 
   return (
@@ -133,33 +149,42 @@ export function FrontmatterFormPanel({
 
           {customRows.length > 0 && (
             <div className="mt-3 space-y-2">
-              {customRows.map((row) => (
-                <div key={row.id} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={row.key}
-                    onChange={(event) => updateCustomKey(row.id, event.target.value)}
-                    placeholder="key"
-                    className="w-32 shrink-0 rounded border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100 placeholder:text-gray-500 focus:border-violet-400 focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    value={row.value}
-                    onChange={(event) => updateCustomValue(row.id, event.target.value)}
-                    placeholder="value"
-                    className="w-full min-w-0 rounded border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100 placeholder:text-gray-500 focus:border-violet-400 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    className="rounded px-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-red-400"
-                    title="Delete"
-                    aria-label={`Delete ${row.key || 'custom field'}`}
-                    onClick={() => removeCustomRow(row.id)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+              {customRows.map((row) => {
+                const trimmedKey = row.key.trim()
+                const conflict = trimmedKey !== '' && trimmedKey !== row.committedKey && keyIsTaken(trimmedKey, row.id)
+                return (
+                  <div key={row.id}>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={row.key}
+                        onChange={(event) => updateCustomKey(row.id, event.target.value)}
+                        placeholder="key"
+                        className={`w-32 shrink-0 rounded border bg-gray-900 px-2 py-1 text-sm text-gray-100 placeholder:text-gray-500 focus:outline-none ${
+                          conflict ? 'border-red-500' : 'border-gray-600 focus:border-violet-400'
+                        }`}
+                      />
+                      <input
+                        type="text"
+                        value={row.value}
+                        onChange={(event) => updateCustomValue(row.id, event.target.value)}
+                        placeholder="value"
+                        className="w-full min-w-0 rounded border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-100 placeholder:text-gray-500 focus:border-violet-400 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        className="rounded px-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-red-400"
+                        title="Delete"
+                        aria-label={`Delete ${row.key || 'custom field'}`}
+                        onClick={() => removeCustomRow(row.id)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {conflict && <p className="ml-0 mt-1 text-xs text-red-400">Already in use — pick a different key</p>}
+                  </div>
+                )
+              })}
             </div>
           )}
 

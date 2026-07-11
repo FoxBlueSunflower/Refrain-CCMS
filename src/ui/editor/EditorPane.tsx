@@ -86,7 +86,13 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
   }
 
   function handleBodyChange(newBody: string) {
-    const prefix = docTextRef.current.slice(0, docTextRef.current.length - parsed.body.length)
+    // Re-derive the split from docTextRef.current (not the render-scoped
+    // `parsed` above) so two commits landing back-to-back within the same
+    // synchronous call stack — before React has re-rendered — can't compute
+    // the new prefix against a stale body length.
+    const current = docTextRef.current
+    const currentParsed = parseFrontmatter(current)
+    const prefix = current.slice(0, current.length - currentParsed.body.length)
     commit(prefix + newBody)
   }
 

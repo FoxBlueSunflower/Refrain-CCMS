@@ -68,6 +68,20 @@ describe('setFrontmatterField', () => {
     const result = setFrontmatterField(raw, 'forked_from', null)
     expect(result).toContain('forked_from: null')
   })
+
+  it('sets a boolean value unquoted, round-tripping back to a boolean', () => {
+    const raw = '---\ntitle: X\n---\nbody\n'
+    const result = setFrontmatterField(raw, 'archived', true)
+    expect(result).toContain('archived: true')
+    expect(parseFrontmatter(result).frontmatter.archived).toBe(true)
+  })
+
+  it('sets false correctly, not confused with an absent/falsy key', () => {
+    const raw = '---\ntitle: X\n---\nbody\n'
+    const result = setFrontmatterField(raw, 'archived', false)
+    expect(result).toContain('archived: false')
+    expect(parseFrontmatter(result).frontmatter.archived).toBe(false)
+  })
 })
 
 describe('deleteFrontmatterField', () => {
