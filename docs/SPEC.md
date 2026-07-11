@@ -54,6 +54,9 @@ my-docs/                          ← user picks/creates this folder
 │   ├── support-contact.md           {{> name}} always resolves by filename
 │   └── legal/                       stem, workspace-wide-unique, regardless
 │       └── _folder.json             of which folder it lives in
+├── publications/                 ← ordered compositions of docs (Phase 9); each
+│   └── user-guide.json              file is one publication — a tree of doc
+│                                     references and structural headings
 ├── publish/                      ← generated site (safe to delete; rebuilt anytime)
 └── .app/                         ← app-managed; rebuildable except history/
     ├── index.json                ← where-used cache (disposable; rebuilt by scan)
@@ -126,6 +129,37 @@ forked_from_snapshot: null # history timestamp it was copied at
 > ⚠️ **Careful:** this action cannot be undone.
 ```
 
+**A publication (publications/user-guide.json)** — ordered tree of doc
+references and structural-only headings; nodes are not copies of doc
+content, just pointers, so editing a doc updates every publication that
+includes it (Phase 9)
+```json
+{
+  "title": "User Guide",
+  "nodes": [
+    { "type": "heading", "title": "Getting Started" },
+    { "type": "doc", "ref": "docs/getting-started.md" },
+    { "type": "doc", "ref": "docs/guides/installation.md" },
+    { "type": "heading", "title": "Reference", "children": [
+      { "type": "doc", "ref": "docs/faq.md" }
+    ] }
+  ]
+}
+```
+Heading levels are NOT stored here — the builder assigns them at publish
+time from each node's depth in the tree (Phase 9c), after condition-tag
+filtering removes any excluded branches. A `doc` node's single H1 (see the
+heading-normalization rule below) becomes that node's title at whatever
+level its position implies; the doc's own internal H2-H6 body headings
+shift down to stay correctly nested beneath it.
+
+**Heading normalization (applies to every document):** a document has
+exactly one H1 — its title, the same string as its frontmatter `title`
+field — used as the doc's label when placed in a publication tree. H2-H6
+remain free-form for the document's own internal structure; this rule
+constrains *title* uniqueness per doc, not the total number of headings
+a doc may contain.
+
 **Syntax rules (one mental model: curly braces = dynamic):**
 - `{{key}}` → variable substitution at publish
 - `{{> name}}` → snippet transclusion (live: always current content; snippets may contain variables; one level of snippet-in-snippet allowed, deeper is refused with a friendly error — Deming cap). Resolves by filename stem only — the snippet's folder location never affects this, so snippet names must stay unique across the whole workspace, not just within a folder
@@ -174,7 +208,8 @@ to reorder, or to move a document/snippet into a different folder.
 | conditions.json | condition_tag rows | dimension column maps directly |
 | .app/index.json | document_snippet / document_variable / document_condition | Or simply rebuilt server-side on import |
 | .app/history/ | document_version / snippet_version | Timestamp → created_at; optional import |
-| publish-log.json | publication + publication_document | Preserves the user's changelog continuity |
+| publish-log.json | publish_log + publish_log_entry | Preserves the user's changelog continuity |
+| publications/*.json | publications + publication_nodes | Ordered tree → parent_node_id + sort_order; doc nodes reference document rows by id, resolved from their `ref` path at import time |
 | license key | subscription | Grandfather one-time buyers with SaaS discount |
 
 **Design guarantee:** every concept in the folder has exactly one home in Schema 1, so the SaaS importer is a directory walk + inserts — an afternoon of code, not a project. The reverse is also true: the SaaS's "export everything" writes this exact folder, which keeps the covenant symmetrical.
