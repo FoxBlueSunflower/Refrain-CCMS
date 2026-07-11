@@ -224,6 +224,7 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
             onSave={onSave}
             completionItems={completionItems}
             conditionsFile={conditionsFile}
+            resolveContext={resolveContext}
           />
         </div>
         {previewVisible && (

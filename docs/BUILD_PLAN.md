@@ -142,9 +142,9 @@ scoping needed — the one simplification versus the prototype's version).
 Broken references render as a distinct "broken pill" state, not a
 silent failure.
 **Accept when:**
-- [ ] Pills render correctly for both valid and broken references,
+- [x] Pills render correctly for both valid and broken references,
       visually distinct from each other
-- [ ] Underlying saved file content is unchanged plain-text — pills are
+- [x] Underlying saved file content is unchanged plain-text — pills are
       a rendering layer only
 
 ### 8c. Snippet pills

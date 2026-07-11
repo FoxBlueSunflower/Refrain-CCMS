@@ -6,8 +6,10 @@ import { markdown } from '@codemirror/lang-markdown'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
+import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
 import { createConditionCompletionSource, createTokenCompletionSource, type TokenCompletionItems } from './completions'
+import { createVariablePillPlugin, refreshPillsEffect } from './pillPlugin'
 
 // Overrides CodeMirror's default light-mode link/URL color (a dark indigo,
 // `#219`), which is nearly illegible against this editor's dark background.
@@ -28,6 +30,8 @@ interface CodeMirrorEditorProps {
   completionItems: TokenCompletionItems
   /** Condition dimensions/values available for :::when autocomplete. Read live via a ref, not rebuilt per keystroke. */
   conditionsFile: ConditionsFile
+  /** Variables & snippets used to render {{variable_name}} pills. Read live via a ref; changes also trigger an in-place pill refresh. */
+  resolveContext: ResolveContext
 }
 
 export interface CodeMirrorEditorHandle {
@@ -41,7 +45,7 @@ export interface CodeMirrorEditorHandle {
 }
 
 export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEditorProps>(function CodeMirrorEditor(
-  { path, initialValue, onChange, onSave, completionItems, conditionsFile },
+  { path, initialValue, onChange, onSave, completionItems, conditionsFile, resolveContext },
   forwardedRef,
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -50,6 +54,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
   const onSaveRef = useRef(onSave)
   const completionItemsRef = useRef(completionItems)
   const conditionsFileRef = useRef(conditionsFile)
+  const resolveContextRef = useRef(resolveContext)
 
   useEffect(() => {
     onChangeRef.current = onChange
@@ -66,6 +71,11 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
   useEffect(() => {
     conditionsFileRef.current = conditionsFile
   }, [conditionsFile])
+
+  useEffect(() => {
+    resolveContextRef.current = resolveContext
+    viewRef.current?.dispatch({ effects: refreshPillsEffect.of(null) })
+  }, [resolveContext])
 
   useImperativeHandle(forwardedRef, () => ({
     insertAtCursor: (text: string, caretOffset?: number) => {
@@ -95,6 +105,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
             createConditionCompletionSource(() => conditionsFileRef.current),
           ],
         }),
+        createVariablePillPlugin(() => resolveContextRef.current),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString())
@@ -119,6 +130,15 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
           '.cm-tooltip-autocomplete': { backgroundColor: '#1f2937', border: '1px solid #374151', color: '#e5e7eb' },
           '.cm-tooltip-autocomplete ul li[aria-selected]': { backgroundColor: '#4c1d95', color: '#f3f4f6' },
           '.cm-completionDetail': { color: '#9ca3af', fontStyle: 'normal' },
+          '.rf-pill': {
+            borderRadius: '4px',
+            padding: '0 4px',
+            cursor: 'text',
+            fontFamily: 'ui-monospace, monospace',
+            fontSize: '0.9em',
+          },
+          '.rf-pill-variable': { backgroundColor: '#312e81', color: '#c7d2fe', border: '1px solid #4c1d95' },
+          '.rf-pill-broken': { backgroundColor: '#450a0a', color: '#fca5a5', border: '1px dashed #b91c1c' },
         }),
       ],
     })
