@@ -1,7 +1,10 @@
+import type { FrontmatterScalar } from './parse'
+
 const FENCE = '---'
 
-function formatScalar(value: number | string | null): string {
+function formatScalar(value: FrontmatterScalar): string {
   if (value === null) return 'null'
+  if (typeof value === 'boolean') return String(value)
   if (typeof value === 'number') return String(value)
 
   const needsQuoting =
@@ -32,7 +35,7 @@ function reconstruct(lines: string[], separators: string[]): string {
  * well-formed block exists (fail-soft, per parseFrontmatter's own
  * philosophy — never throws, never drops body text).
  */
-export function setFrontmatterField(raw: string, key: string, value: number | string | null): string {
+export function setFrontmatterField(raw: string, key: string, value: FrontmatterScalar): string {
   const parts = raw.split(/(\r\n|\n)/)
   const lines = parts.filter((_, i) => i % 2 === 0)
   const separators = parts.filter((_, i) => i % 2 === 1)
@@ -61,4 +64,33 @@ export function setFrontmatterField(raw: string, key: string, value: number | st
   }
 
   return `${FENCE}${eol}${key}: ${formatted}${eol}${FENCE}${eol}${eol}${raw}`
+}
+
+/**
+ * Removes `key`'s line from `raw`'s frontmatter block, leaving every other
+ * line — including inline comments on other keys and CRLF/LF line endings —
+ * byte-for-byte untouched. No-op (returns `raw` unchanged) when the key or
+ * frontmatter block is absent, matching setFrontmatterField's fail-soft
+ * philosophy.
+ */
+export function deleteFrontmatterField(raw: string, key: string): string {
+  const parts = raw.split(/(\r\n|\n)/)
+  const lines = parts.filter((_, i) => i % 2 === 0)
+  const separators = parts.filter((_, i) => i % 2 === 1)
+
+  if (lines[0] !== FENCE) return raw
+  const closingIndex = lines.indexOf(FENCE, 1)
+  if (closingIndex === -1) return raw
+
+  for (let i = 1; i < closingIndex; i++) {
+    const colonIndex = lines[i].indexOf(':')
+    if (colonIndex === -1) continue
+    if (lines[i].slice(0, colonIndex).trim() === key) {
+      lines.splice(i, 1)
+      separators.splice(i - 1, 1)
+      return reconstruct(lines, separators)
+    }
+  }
+
+  return raw
 }

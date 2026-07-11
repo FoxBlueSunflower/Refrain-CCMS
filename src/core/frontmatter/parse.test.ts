@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseFrontmatter } from './parse'
+import { coerceScalar, parseFrontmatter } from './parse'
 
 describe('parseFrontmatter', () => {
   it('parses well-formed document frontmatter', () => {
@@ -101,5 +101,44 @@ describe('parseFrontmatter', () => {
     const result = parseFrontmatter(raw)
     expect(result.frontmatter.order).toBe(2)
     expect(typeof result.frontmatter.order).toBe('number')
+  })
+})
+
+describe('coerceScalar', () => {
+  it('coerces a plain string', () => {
+    expect(coerceScalar('warning-banner')).toBe('warning-banner')
+  })
+
+  it('coerces an integer string to a number', () => {
+    expect(coerceScalar('42')).toBe(42)
+  })
+
+  it('coerces a decimal string to a number', () => {
+    expect(coerceScalar('3.2')).toBe(3.2)
+  })
+
+  it('coerces a negative number string to a number', () => {
+    expect(coerceScalar('-7')).toBe(-7)
+  })
+
+  it('coerces "true" and "false" to booleans', () => {
+    expect(coerceScalar('true')).toBe(true)
+    expect(coerceScalar('false')).toBe(false)
+  })
+
+  it('coerces "null" to null', () => {
+    expect(coerceScalar('null')).toBeNull()
+  })
+
+  it('preserves a quoted string containing a #', () => {
+    expect(coerceScalar('"Caution: #1 rule"')).toBe('Caution: #1 rule')
+  })
+
+  it('coerces an empty quoted string to an empty string', () => {
+    expect(coerceScalar("''")).toBe('')
+  })
+
+  it('trims a whitespace-padded value', () => {
+    expect(coerceScalar('  spaced out  ')).toBe('spaced out')
   })
 })

@@ -82,6 +82,8 @@ interface OpenDocument {
   kind: EntryKind
   relPath: string
   fullPath: string
+  /** True only for the specific openEntry call made right after "New Document"/"New Snippet" — drives the frontmatter panel's default expanded state for that open. Resets to false on any later re-open of the same file (e.g. switching away and back), by design — see BUILD_PLAN.md Phase 8a. */
+  justCreated: boolean
 }
 
 interface ActiveFile {
@@ -161,7 +163,6 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   const [currentFolder, setCurrentFolder] = useState<Record<EntryKind, string>>({ document: '', snippet: '' })
 
   const [openDoc, setOpenDoc] = useState<OpenDocument | null>(null)
-  const [liveText, setLiveText] = useState('')
   const [dirty, setDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
 
@@ -293,7 +294,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   }, [flushPendingSave])
 
   const openEntry = useCallback(
-    async (kind: EntryKind, relPath: string) => {
+    async (kind: EntryKind, relPath: string, justCreated = false) => {
       const fullPath = `${baseDirFor(kind)}/${relPath}`
       if (activeRef.current?.fullPath === fullPath && activePane === 'document') return
 
@@ -303,8 +304,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         const text = await readTextFile(handle, fullPath)
         bufferRef.current = text
         activeRef.current = { fullPath, savedText: text }
-        setOpenDoc({ kind, relPath, fullPath })
-        setLiveText(text)
+        setOpenDoc({ kind, relPath, fullPath, justCreated })
         setDirty(false)
         setSaveStatus('idle')
       } catch (err) {
@@ -462,7 +462,6 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   const handleBufferChange = useCallback(
     (next: string) => {
       bufferRef.current = next
-      setLiveText(next)
       const active = activeRef.current
       const isDirty = active ? next !== active.savedText : false
       setDirty(isDirty)
@@ -503,7 +502,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         await writeTextFile(handle, path, templateFor(entryKind, title))
         setModal({ kind: 'none' })
         bump()
-        void openEntry(entryKind, path.slice(baseDir.length + 1))
+        void openEntry(entryKind, path.slice(baseDir.length + 1), true)
       } catch (err) {
         pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       }
@@ -539,7 +538,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         await renameFile(handle, oldPath, newPath)
         if (activeRef.current?.fullPath === oldPath) {
           activeRef.current.fullPath = newPath
-          setOpenDoc({ kind: entryKind, relPath: segments.join('/'), fullPath: newPath })
+          setOpenDoc({ kind: entryKind, relPath: segments.join('/'), fullPath: newPath, justCreated: false })
         }
         setModal({ kind: 'none' })
         bump()
@@ -632,7 +631,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         if (activeRef.current?.fullPath === sourceFullPath && newFullPath !== sourceFullPath) {
           const newRelPath = newFullPath.slice(baseDir.length + 1)
           activeRef.current.fullPath = newFullPath
-          setOpenDoc({ kind: entryKind, relPath: newRelPath, fullPath: newFullPath })
+          setOpenDoc({ kind: entryKind, relPath: newRelPath, fullPath: newFullPath, justCreated: false })
         }
         setCurrentFolder((prev) => (prev[entryKind] === sourcePath ? { ...prev, [entryKind]: targetParentPath } : prev))
         bump()
@@ -787,8 +786,9 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
               ref={editorPaneRef}
               title={titleFromPath(openDoc.relPath)}
               path={openDoc.fullPath}
+              entryKind={openDoc.kind}
+              justCreated={openDoc.justCreated}
               initialValue={bufferRef.current}
-              liveText={liveText}
               dirty={dirty}
               saveStatus={saveStatus}
               currentRelPath={openDoc.kind === 'document' ? openDoc.relPath : null}

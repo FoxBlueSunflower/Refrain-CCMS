@@ -16,7 +16,7 @@ export interface ParsedDocument {
 
 const FENCE = '---'
 
-function coerceScalar(raw: string): FrontmatterScalar {
+export function coerceScalar(raw: string): FrontmatterScalar {
   const value = raw.trim()
   if (value === 'null') return null
   if (value === 'true') return true
