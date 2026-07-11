@@ -43,7 +43,10 @@ export function PreviewPane({ text, currentRelPath, onNavigate, resolveContext }
     if (resolvedLink) onNavigate(resolvedLink)
   }
 
-  const warnings = [...parsed.warnings, ...resolved.warnings.map((w) => w.message)]
+  // Frontmatter parse warnings surface on FrontmatterFormPanel instead, since
+  // it's now the primary frontmatter-facing UI — showing them here too would
+  // just duplicate the same message.
+  const warnings = resolved.warnings.map((w) => w.message)
 
   return (
     <div className="h-full overflow-auto bg-white p-4 text-gray-900" onClick={handleClick}>

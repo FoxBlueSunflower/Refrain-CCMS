@@ -1,8 +1,12 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { parseFrontmatter, type FrontmatterScalar } from '../../core/frontmatter/parse'
+import type { FrontmatterEntryKind } from '../../core/frontmatter/schema'
+import { deleteFrontmatterField, setFrontmatterField } from '../../core/frontmatter/update'
 import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
 import { CodeMirrorEditor, type CodeMirrorEditorHandle } from './CodeMirrorEditor'
 import type { TokenCompletionItems } from './completions'
+import { FrontmatterFormPanel } from './FrontmatterFormPanel'
 import { PreviewPane } from './PreviewPane'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -14,8 +18,10 @@ export interface EditorPaneHandle {
 interface EditorPaneProps {
   title: string
   path: string
+  entryKind: FrontmatterEntryKind
+  /** Only affects the frontmatter panel's initial collapsed/expanded state — see FrontmatterFormPanel. */
+  justCreated: boolean
   initialValue: string
-  liveText: string
   dirty: boolean
   saveStatus: SaveStatus
   currentRelPath: string | null
@@ -38,8 +44,9 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
   {
     title,
     path,
+    entryKind,
+    justCreated,
     initialValue,
-    liveText,
     dirty,
     saveStatus,
     currentRelPath,
@@ -56,10 +63,45 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
   const editorRef = useRef<CodeMirrorEditorHandle | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [previewVisible, setPreviewVisible] = useState(true)
+  const [frontmatterCollapsed, setFrontmatterCollapsed] = useState(!justCreated)
+
+  // Whole file text (frontmatter + body), owned locally so the frontmatter
+  // form and the body-only CodeMirror editor can each edit their own slice
+  // and recombine into the single string WorkspaceShell's onChange/autosave
+  // pipeline expects. Read once at mount — this component is remounted per
+  // open file (key={fullPath} in WorkspaceShell), same lifecycle CodeMirror
+  // already relies on for its own "read initialValue once" contract.
+  const docTextRef = useRef(initialValue)
+  const [docText, setDocText] = useState(initialValue)
+  const parsed = useMemo(() => parseFrontmatter(docText), [docText])
 
   useImperativeHandle(forwardedRef, () => ({
     togglePreview: () => setPreviewVisible((visible) => !visible),
   }))
+
+  function commit(next: string) {
+    docTextRef.current = next
+    setDocText(next)
+    onChange(next)
+  }
+
+  function handleBodyChange(newBody: string) {
+    const prefix = docTextRef.current.slice(0, docTextRef.current.length - parsed.body.length)
+    commit(prefix + newBody)
+  }
+
+  function handleFrontmatterFieldChange(key: string, value: FrontmatterScalar) {
+    commit(setFrontmatterField(docTextRef.current, key, value))
+  }
+
+  function handleFrontmatterKeyRename(oldKey: string, newKey: string, value: FrontmatterScalar) {
+    const withoutOld = deleteFrontmatterField(docTextRef.current, oldKey)
+    commit(setFrontmatterField(withoutOld, newKey, value))
+  }
+
+  function handleFrontmatterFieldDelete(key: string) {
+    commit(deleteFrontmatterField(docTextRef.current, key))
+  }
 
   function insert(text: string, caretOffset?: number) {
     editorRef.current?.insertAtCursor(text, caretOffset)
@@ -156,13 +198,23 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
           <span className={`text-xs ${status.className}`}>{status.text}</span>
         </div>
       </header>
+      <FrontmatterFormPanel
+        entryKind={entryKind}
+        frontmatter={parsed.frontmatter}
+        warnings={parsed.warnings}
+        collapsed={frontmatterCollapsed}
+        onToggleCollapsed={() => setFrontmatterCollapsed((collapsed) => !collapsed)}
+        onFieldChange={handleFrontmatterFieldChange}
+        onKeyRename={handleFrontmatterKeyRename}
+        onFieldDelete={handleFrontmatterFieldDelete}
+      />
       <div className="flex min-h-0 flex-1">
         <div className={`min-h-0 flex-1 ${previewVisible ? 'border-r border-gray-700' : ''}`}>
           <CodeMirrorEditor
             ref={editorRef}
             path={path}
-            initialValue={initialValue}
-            onChange={onChange}
+            initialValue={parsed.body}
+            onChange={handleBodyChange}
             onSave={onSave}
             completionItems={completionItems}
             conditionsFile={conditionsFile}
@@ -170,7 +222,7 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
         </div>
         {previewVisible && (
           <div className="min-h-0 flex-1">
-            <PreviewPane text={liveText} currentRelPath={currentRelPath} onNavigate={onNavigate} resolveContext={resolveContext} />
+            <PreviewPane text={docText} currentRelPath={currentRelPath} onNavigate={onNavigate} resolveContext={resolveContext} />
           </div>
         )}
       </div>
