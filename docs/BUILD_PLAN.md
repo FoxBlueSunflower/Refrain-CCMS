@@ -150,7 +150,11 @@ silent failure.
 ### 8c. Snippet pills
 Same pattern as 8b for `{{> snippet_name}}` references, with distinct
 pill styling from variable pills.
-**Accept when:** same criteria as 8b, applied to snippet references.
+**Accept when:**
+- [x] Pills render correctly for both valid and broken references,
+      visually distinct from each other
+- [x] Underlying saved file content is unchanged plain-text — pills are
+      a rendering layer only
 
 ### 8d. Doc and snippet templates
 A template is the same shape as a doc/snippet but with placeholder
