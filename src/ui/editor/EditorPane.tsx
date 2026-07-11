@@ -26,6 +26,8 @@ interface EditorPaneProps {
   saveStatus: SaveStatus
   currentRelPath: string | null
   resolveContext: ResolveContext
+  /** All known document paths, relative to docs/, used by link pills to detect broken internal links. */
+  documentPaths: ReadonlySet<string>
   completionItems: TokenCompletionItems
   conditionsFile: ConditionsFile
   onChange: (text: string) => void
@@ -51,6 +53,7 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
     saveStatus,
     currentRelPath,
     resolveContext,
+    documentPaths,
     completionItems,
     conditionsFile,
     onChange,
@@ -225,6 +228,8 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
             completionItems={completionItems}
             conditionsFile={conditionsFile}
             resolveContext={resolveContext}
+            currentRelPath={currentRelPath}
+            documentPaths={documentPaths}
           />
         </div>
         {previewVisible && (

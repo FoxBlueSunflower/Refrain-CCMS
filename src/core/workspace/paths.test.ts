@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  classifyLink,
   isExternalHref,
   isValidFilename,
   joinPath,
@@ -187,5 +188,49 @@ describe('resolveRelativeDocLink', () => {
 
   it('strips a trailing in-page anchor from an otherwise valid link', () => {
     expect(resolveRelativeDocLink('index.md', 'guides/installation.md#warning')).toBe('guides/installation.md')
+  })
+})
+
+describe('classifyLink', () => {
+  const documentPaths = new Set(['index.md', 'guides/installation.md'])
+
+  it('classifies an external URL', () => {
+    expect(classifyLink('https://example.com', 'index.md', documentPaths)).toBe('external')
+  })
+
+  it('classifies a mailto link', () => {
+    expect(classifyLink('mailto:help@acme.com', 'index.md', documentPaths)).toBe('external')
+  })
+
+  it('classifies an anchor-only href', () => {
+    expect(classifyLink('#section', 'index.md', documentPaths)).toBe('anchor')
+  })
+
+  it('classifies an empty href as an anchor', () => {
+    expect(classifyLink('', 'index.md', documentPaths)).toBe('anchor')
+  })
+
+  it('classifies a relative link as unresolvable when opened from a snippet', () => {
+    expect(classifyLink('guides/installation.md', null, documentPaths)).toBe('unresolvable')
+  })
+
+  it('classifies a relative link resolving to a known document as ok', () => {
+    expect(classifyLink('guides/installation.md', 'index.md', documentPaths)).toBe('internal-ok')
+  })
+
+  it('classifies a relative link resolving to an unknown document as broken', () => {
+    expect(classifyLink('guides/missing.md', 'index.md', documentPaths)).toBe('internal-broken')
+  })
+
+  it('classifies an absolute path as broken', () => {
+    expect(classifyLink('/docs/index.md', 'index.md', documentPaths)).toBe('internal-broken')
+  })
+
+  it('classifies a non-.md target as broken', () => {
+    expect(classifyLink('diagram.png', 'index.md', documentPaths)).toBe('internal-broken')
+  })
+
+  it('classifies a link that escapes above docs/ as broken', () => {
+    expect(classifyLink('../../etc/passwd.md', 'index.md', documentPaths)).toBe('internal-broken')
   })
 })

@@ -168,6 +168,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
 
   const [variables, setVariables] = useState<VariablesFile>({})
   const [snippets, setSnippets] = useState<SnippetSource>({})
+  const [documentPaths, setDocumentPaths] = useState<ReadonlySet<string>>(new Set())
   const [index, setIndex] = useState<WorkspaceIndex>({ builtAt: '', snippets: {}, variables: {}, conditions: {} })
   const [whereUsedOpen, setWhereUsedOpen] = useState(false)
 
@@ -216,6 +217,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     ])
     setVariables(nextVariables)
     setSnippets(nextSnippets)
+    setDocumentPaths(new Set(nextDocuments.map((d) => d.path.slice(baseDirFor('document').length + 1))))
     setConditionsFile(nextConditionsFile)
     setWorkspaceConfig(workspaceConfigResult.ok ? workspaceConfigResult.value : null)
 
@@ -793,6 +795,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
               saveStatus={saveStatus}
               currentRelPath={openDoc.kind === 'document' ? openDoc.relPath : null}
               resolveContext={resolveContext}
+              documentPaths={documentPaths}
               completionItems={completionItems}
               conditionsFile={conditionsFile}
               onChange={handleBufferChange}
