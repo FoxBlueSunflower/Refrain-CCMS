@@ -128,9 +128,9 @@ custom keys fall back to a simple key-value row so nothing is hidden or
 silently dropped. The raw YAML remains the underlying file format — the
 form is a view over it, so files stay plain-text and portable.
 **Accept when:**
-- [ ] Editing via the form and editing the raw file (outside the app)
+- [x] Editing via the form and editing the raw file (outside the app)
       produce identical results when the file is reopened
-- [ ] An unrecognized frontmatter key survives a round-trip without
+- [x] An unrecognized frontmatter key survives a round-trip without
       being dropped
 
 ### 8b. Variable pills
@@ -163,9 +163,9 @@ basic template management UI (list, edit, archive). No cross-brand
 exception needed here — in a single-user workspace, every template is
 just available everywhere, which is the natural behavior anyway.
 **Accept when:**
-- [ ] Creating a doc/snippet from a template produces editable content
+- [x] Creating a doc/snippet from a template produces editable content
       correctly seeded from the template
-- [ ] Editing a doc created from a template never changes the template
+- [x] Editing a doc created from a template never changes the template
 
 ### 8e. Highlight condition application (insertion)
 Carried over from the original prioritized list — this was dropped by

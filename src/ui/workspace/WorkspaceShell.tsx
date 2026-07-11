@@ -10,25 +10,32 @@ import { diffConditions, diffVariables } from '../../core/snapshots/discrepancy'
 import type { ConditionDiscrepancy, PublishLogEntry, VariableDiscrepancy } from '../../core/snapshots/types'
 import { APP_DIR, PUBLISH_DIR } from '../../core/workspace/constants'
 import { slugify, withMdExtension } from '../../core/workspace/paths'
+import { defaultFrontmatterFor, seedTemplateContent, templateBaseDir } from '../../core/workspace/templates'
 import type { ConditionsFile, VariablesFile, WorkspaceConfig } from '../../core/workspace/types'
 import {
   appendPublishLogEntry,
+  archiveTemplate,
   clearDirectory,
   createFolder,
+  createTemplate,
   deleteEntry,
   deleteFolder,
-  directoryExists,
+  findUniqueFilePath,
+  findUniqueFolderPath,
   listSnapshots,
   moveFile,
   moveFolder,
   pathExists,
   readAllDocuments,
   readAllSnippets,
+  readAllTemplates,
+  readAvailableTemplates,
   readConditionsFile,
   readCurrentSnapshotFiles,
   readDocTree,
   readPublishLog,
   readSnapshotFiles,
+  readTemplateBody,
   readTextFile,
   readVariablesFile,
   readWorkspaceConfig,
@@ -36,10 +43,12 @@ import {
   renameFolder,
   restoreSnapshot,
   snippetStemExists,
+  unarchiveTemplate,
   writeSiblingOrder,
   writeSnapshot,
   writeTextFile,
   type SnapshotSummary,
+  type TemplateSummary,
 } from '../../fs'
 import { EditorPane, type EditorPaneHandle, type SaveStatus } from '../editor/EditorPane'
 import type { CompletionItem } from '../editor/completions'
@@ -55,6 +64,7 @@ import { DocumentTitleDialog } from './NewDocumentDialog'
 import { ProfilesEditor, type ProfilesEditorHandle } from './ProfilesEditor'
 import { PublishPanel, type PublishResultSummary } from './PublishPanel'
 import { Sidebar, type SiblingEntry } from './Sidebar'
+import { TemplatesPanel } from './TemplatesPanel'
 import { VariablesEditor, type VariablesEditorHandle } from './VariablesEditor'
 import { WhereUsedPanel } from './WhereUsedPanel'
 
@@ -84,6 +94,8 @@ interface OpenDocument {
   fullPath: string
   /** True only for the specific openEntry call made right after "New Document"/"New Snippet" — drives the frontmatter panel's default expanded state for that open. Resets to false on any later re-open of the same file (e.g. switching away and back), by design — see BUILD_PLAN.md Phase 8a. */
   justCreated: boolean
+  /** True when this open is a template (via the Templates panel) rather than a real doc/snippet — excludes it from the doc-link graph, same treatment snippets already get. */
+  isTemplate?: boolean
 }
 
 interface ActiveFile {
@@ -101,52 +113,9 @@ function labelFor(entryKind: EntryKind): string {
   return entryKind === 'document' ? 'document' : 'snippet'
 }
 
-function templateFor(entryKind: EntryKind, title: string): string {
-  if (entryKind === 'document') {
-    return `---\ntitle: ${title}\n---\n\n# ${title}\n`
-  }
-  const name = slugify(title) || 'untitled'
-  return `---\nname: ${name}\ndescription: ''\nforked_from: null\nforked_from_snapshot: null\n---\n\n`
-}
-
 function titleFromPath(path: string): string {
   const name = path.split('/').pop() ?? path
   return name.endsWith('.md') ? name.slice(0, -3) : name
-}
-
-/** Finds a free path under `baseDir`/`parentPath` for `base`, suffixing -2, -3, ... on collision. */
-async function uniquePath(
-  handle: FileSystemDirectoryHandle,
-  baseDir: string,
-  parentPath: string,
-  base: string,
-): Promise<string> {
-  const stem = base.endsWith('.md') ? base.slice(0, -3) : base
-  const dir = parentPath ? `${baseDir}/${parentPath}` : baseDir
-  let candidate = `${dir}/${stem}.md`
-  let n = 2
-  while (await pathExists(handle, candidate)) {
-    candidate = `${dir}/${stem}-${n}.md`
-    n += 1
-  }
-  return candidate
-}
-
-/** Finds a free folder path under `baseDir`/`parentPath` for `base`, suffixing -2, -3, ... on collision. */
-async function uniqueFolderPath(
-  handle: FileSystemDirectoryHandle,
-  baseDir: string,
-  parentPath: string,
-  base: string,
-): Promise<string> {
-  const dir = parentPath ? `${baseDir}/${parentPath}` : baseDir
-  let candidate = `${dir}/${base}`
-  let n = 2
-  while (await directoryExists(handle, candidate)) {
-    candidate = `${dir}/${base}-${n}`
-    n += 1
-  }
-  return candidate
 }
 
 function parentFolderOf(relPath: string): string {
@@ -161,6 +130,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   // Which folder new-document/new-snippet lands in, per entry kind — kept in
   // sync with whichever document/snippet/folder the user last clicked.
   const [currentFolder, setCurrentFolder] = useState<Record<EntryKind, string>>({ document: '', snippet: '' })
+  const [availableTemplates, setAvailableTemplates] = useState<TemplateSummary[]>([])
 
   const [openDoc, setOpenDoc] = useState<OpenDocument | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -188,6 +158,10 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     variables: VariableDiscrepancy[]
     conditions: ConditionDiscrepancy[]
   } | null>(null)
+
+  const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [docTemplates, setDocTemplates] = useState<TemplateSummary[]>([])
+  const [snippetTemplates, setSnippetTemplates] = useState<TemplateSummary[]>([])
 
   const [activePane, setActivePane] = useState<Pane>('document')
   const [openedPanes, setOpenedPanes] = useState<Set<Exclude<Pane, 'document'>>>(new Set())
@@ -235,6 +209,20 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   useEffect(() => {
     void reloadResolverData()
   }, [reloadResolverData, refreshToken])
+
+  useEffect(() => {
+    if (modal.kind !== 'new') {
+      setAvailableTemplates([])
+      return
+    }
+    let cancelled = false
+    void readAvailableTemplates(handle, modal.entryKind).then((templates) => {
+      if (!cancelled) setAvailableTemplates(templates)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [handle, modal])
 
   const resolveContext = useMemo(() => ({ variables, snippets }), [variables, snippets])
 
@@ -307,6 +295,31 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         bufferRef.current = text
         activeRef.current = { fullPath, savedText: text }
         setOpenDoc({ kind, relPath, fullPath, justCreated })
+        setDirty(false)
+        setSaveStatus('idle')
+      } catch (err) {
+        activeRef.current = null
+        setOpenDoc(null)
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      }
+    },
+    [handle, flushAllPanes, activePane, pushToast],
+  )
+
+  /** Opens a template into the same editor slot as a real doc/snippet, via templates/docs/ or templates/snippets/ instead of docs/ or snippets/. */
+  const openTemplateEntry = useCallback(
+    async (kind: EntryKind, relPath: string) => {
+      const fullPath = `${templateBaseDir(kind)}/${relPath}`
+      setTemplatesOpen(false)
+      if (activeRef.current?.fullPath === fullPath && activePane === 'document') return
+
+      await flushAllPanes()
+      setActivePane('document')
+      try {
+        const text = await readTextFile(handle, fullPath)
+        bufferRef.current = text
+        activeRef.current = { fullPath, savedText: text }
+        setOpenDoc({ kind, relPath, fullPath, justCreated: false, isTemplate: true })
         setDirty(false)
         setSaveStatus('idle')
       } catch (err) {
@@ -396,6 +409,57 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     setHistoryOpen(true)
     void loadHistory()
   }, [loadHistory])
+
+  const loadTemplates = useCallback(async () => {
+    try {
+      const [docs, snips] = await Promise.all([readAllTemplates(handle, 'document'), readAllTemplates(handle, 'snippet')])
+      setDocTemplates(docs)
+      setSnippetTemplates(snips)
+    } catch (err) {
+      pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+    }
+  }, [handle, pushToast])
+
+  const openTemplatesPanel = useCallback(() => {
+    setTemplatesOpen(true)
+    void loadTemplates()
+  }, [loadTemplates])
+
+  const handleCreateTemplate = useCallback(
+    async (entryKind: EntryKind, title: string) => {
+      try {
+        await createTemplate(handle, entryKind, title)
+        await loadTemplates()
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      }
+    },
+    [handle, loadTemplates, pushToast],
+  )
+
+  const handleArchiveTemplate = useCallback(
+    async (entryKind: EntryKind, relPath: string) => {
+      try {
+        await archiveTemplate(handle, entryKind, relPath)
+        await loadTemplates()
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      }
+    },
+    [handle, loadTemplates, pushToast],
+  )
+
+  const handleUnarchiveTemplate = useCallback(
+    async (entryKind: EntryKind, relPath: string) => {
+      try {
+        await unarchiveTemplate(handle, entryKind, relPath)
+        await loadTemplates()
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      }
+    },
+    [handle, loadTemplates, pushToast],
+  )
 
   const handleSaveNow = useCallback(async () => {
     setSnapshotting(true)
@@ -492,7 +556,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   }, [performSave])
 
   const handleCreate = useCallback(
-    async (entryKind: EntryKind, title: string) => {
+    async (entryKind: EntryKind, title: string, templatePath: string | null = null) => {
       try {
         const baseDir = baseDirFor(entryKind)
         const stem = slugify(title) || 'untitled'
@@ -500,8 +564,12 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           pushToast({ kind: 'error', message: `A snippet named "${stem}" already exists.` })
           return
         }
-        const path = await uniquePath(handle, baseDir, currentFolder[entryKind], stem)
-        await writeTextFile(handle, path, templateFor(entryKind, title))
+        const path = await findUniqueFilePath(handle, baseDir, currentFolder[entryKind], stem)
+        const content =
+          templatePath !== null
+            ? seedTemplateContent(entryKind, await readTemplateBody(handle, entryKind, templatePath), title)
+            : defaultFrontmatterFor(entryKind, title)
+        await writeTextFile(handle, path, content)
         setModal({ kind: 'none' })
         bump()
         void openEntry(entryKind, path.slice(baseDir.length + 1), true)
@@ -556,7 +624,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
       try {
         const baseDir = baseDirFor(entryKind)
         const slug = slugify(title) || 'untitled'
-        const path = await uniqueFolderPath(handle, baseDir, currentFolder[entryKind], slug)
+        const path = await findUniqueFolderPath(handle, baseDir, currentFolder[entryKind], slug)
         await createFolder(handle, path)
         await renameFolder(handle, path, title)
         setModal({ kind: 'none' })
@@ -679,11 +747,13 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     } else if (historyOpen) {
       setHistoryOpen(false)
       setRestoreDiscrepancies(null)
+    } else if (templatesOpen) {
+      setTemplatesOpen(false)
     }
-  }, [modal, shortcutsHelpOpen, whereUsedOpen, publishOpen, historyOpen])
+  }, [modal, shortcutsHelpOpen, whereUsedOpen, publishOpen, historyOpen, templatesOpen])
 
   const anyOverlayOpen =
-    modal.kind !== 'none' || shortcutsHelpOpen || whereUsedOpen || publishOpen || historyOpen
+    modal.kind !== 'none' || shortcutsHelpOpen || whereUsedOpen || publishOpen || historyOpen || templatesOpen
 
   useAppShortcuts(anyOverlayOpen, {
     onSave: handleExplicitSave,
@@ -705,6 +775,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         onOpenWhereUsed={() => setWhereUsedOpen(true)}
         onOpenPublish={openPublishPanel}
         onOpenHistory={openHistoryPanel}
+        onOpenTemplates={openTemplatesPanel}
         onOpenTour={() => onboardingRef.current?.replay()}
         onNewDocument={() => setModal({ kind: 'new', entryKind: 'document' })}
         onNewDocumentFolder={() => setModal({ kind: 'new-folder', entryKind: 'document' })}
@@ -793,7 +864,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
               initialValue={bufferRef.current}
               dirty={dirty}
               saveStatus={saveStatus}
-              currentRelPath={openDoc.kind === 'document' ? openDoc.relPath : null}
+              currentRelPath={openDoc.kind === 'document' && !openDoc.isTemplate ? openDoc.relPath : null}
               resolveContext={resolveContext}
               documentPaths={documentPaths}
               completionItems={completionItems}
@@ -817,7 +888,8 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         <DocumentTitleDialog
           heading={modal.entryKind === 'document' ? 'New document' : 'New snippet'}
           submitLabel="Create"
-          onSubmit={(title) => void handleCreate(modal.entryKind, title)}
+          templates={availableTemplates.map((t) => ({ path: t.path, title: t.title }))}
+          onSubmit={(title, templatePath) => void handleCreate(modal.entryKind, title, templatePath)}
           onCancel={() => setModal({ kind: 'none' })}
         />
       )}
@@ -907,6 +979,18 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
             setHistoryOpen(false)
             setRestoreDiscrepancies(null)
           }}
+        />
+      )}
+
+      {templatesOpen && (
+        <TemplatesPanel
+          docTemplates={docTemplates}
+          snippetTemplates={snippetTemplates}
+          onEdit={(entryKind, relPath) => void openTemplateEntry(entryKind, relPath)}
+          onArchive={(entryKind, relPath) => void handleArchiveTemplate(entryKind, relPath)}
+          onUnarchive={(entryKind, relPath) => void handleUnarchiveTemplate(entryKind, relPath)}
+          onCreate={(entryKind, title) => void handleCreateTemplate(entryKind, title)}
+          onClose={() => setTemplatesOpen(false)}
         />
       )}
 

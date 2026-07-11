@@ -54,6 +54,11 @@ my-docs/                          ← user picks/creates this folder
 │   ├── support-contact.md           {{> name}} always resolves by filename
 │   └── legal/                       stem, workspace-wide-unique, regardless
 │       └── _folder.json             of which folder it lives in
+├── templates/                    ← reusable starting points for new docs/snippets
+│   ├── docs/                        (Phase 8d); same file shape as docs/ and
+│   │   └── release-notes.md         snippets/ above, placeholder content
+│   └── snippets/                    instead of real content
+│       └── callout.md
 ├── publications/                 ← ordered compositions of docs (Phase 9); each
 │   └── user-guide.json              file is one publication — a tree of doc
 │                                     references and structural headings
@@ -128,6 +133,24 @@ forked_from_snapshot: null # history timestamp it was copied at
 
 > ⚠️ **Careful:** this action cannot be undone.
 ```
+
+**Templates (templates/docs/*.md, templates/snippets/*.md, Phase 8d)** — a
+template uses the exact same frontmatter/body shape as a real document or
+snippet (above), with placeholder content in place of real content. "New
+from template" copies the chosen template's body verbatim into a new file
+under docs/ or snippets/, overwriting only the identity frontmatter field
+(`title` for docs; `name` — plus resetting `forked_from`/
+`forked_from_snapshot` to null — for snippets) to match the new entry's
+title; the template file itself is never written to by this flow.
+Archiving a template moves it to a `templates/docs/archived/` or
+`templates/snippets/archived/` subfolder rather than deleting it — hidden
+from the "New from template" picker, still listed (and editable) in the
+Templates panel. Templates are excluded from the resolver, indexer,
+where-used index, and publish pipeline — `{{key}}`/`{{> name}}` tokens
+inside a template's placeholder body are inert until the instantiated copy
+is published. `templates/` is covered by `.app/history/` snapshots (Save
+now / Restore) but not by `publish-log.json`'s changelog digest, since
+templates never publish.
 
 **A publication (publications/user-guide.json)** — ordered tree of doc
 references and structural-only headings; nodes are not copies of doc
@@ -211,6 +234,7 @@ to reorder, or to move a document/snippet into a different folder.
 | publish-log.json | publish_log + publish_log_entry | Preserves the user's changelog continuity |
 | publications/*.json | publications + publication_nodes | Ordered tree → parent_node_id + sort_order; doc nodes reference document rows by id, resolved from their `ref` path at import time |
 | license key | subscription | Grandfather one-time buyers with SaaS discount |
+| templates/ (Phase 8d) | *not yet mapped* | Flagged for Phase 11 design — likely template rows shaped like document/snippet rows, scoped org-wide like snippets |
 
 **Design guarantee:** every concept in the folder has exactly one home in Schema 1, so the SaaS importer is a directory walk + inserts — an afternoon of code, not a project. The reverse is also true: the SaaS's "export everything" writes this exact folder, which keeps the covenant symmetrical.
 

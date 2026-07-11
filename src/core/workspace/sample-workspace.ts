@@ -1,4 +1,11 @@
-import { CONDITIONS_FILE, CURRENT_FORMAT_VERSION, FOLDER_META_FILE, VARIABLES_FILE, WORKSPACE_FILE } from './constants'
+import {
+  CONDITIONS_FILE,
+  CURRENT_FORMAT_VERSION,
+  FOLDER_META_FILE,
+  TEMPLATES_DIR,
+  VARIABLES_FILE,
+  WORKSPACE_FILE,
+} from './constants'
 
 export interface SampleFile {
   path: string
@@ -103,6 +110,32 @@ forked_from_snapshot: null
 Questions? Email {{support_email}}.
 `
 
+const releaseNotesTemplateMd = `---
+title: Untitled release
+description: What changed in this release.
+---
+
+# Untitled release
+
+## Highlights
+
+-
+
+## Fixes
+
+-
+`
+
+const calloutTemplateMd = `---
+name: untitled
+description: Reusable callout box
+forked_from: null
+forked_from_snapshot: null
+---
+
+> Replace this with your callout text.
+`
+
 /**
  * The SPEC.md "Acme Product Docs" sample workspace, as an in-memory file
  * manifest. Pure — callers are responsible for writing these to disk.
@@ -118,5 +151,7 @@ export function buildSampleWorkspaceFiles(): SampleFile[] {
     { path: 'docs/guides/installation.md', contents: installationMd },
     { path: 'snippets/warning-banner.md', contents: warningBannerMd },
     { path: 'snippets/support-contact.md', contents: supportContactMd },
+    { path: `${TEMPLATES_DIR}/docs/release-notes.md`, contents: releaseNotesTemplateMd },
+    { path: `${TEMPLATES_DIR}/snippets/callout.md`, contents: calloutTemplateMd },
   ]
 }

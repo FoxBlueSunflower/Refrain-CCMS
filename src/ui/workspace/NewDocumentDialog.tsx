@@ -1,28 +1,37 @@
 import { useState, type FormEvent } from 'react'
 
+export interface TemplateOption {
+  path: string
+  title: string
+}
+
 interface DocumentTitleDialogProps {
   heading: string
   submitLabel: string
   initialValue?: string
-  onSubmit: (title: string) => void
+  /** When non-empty, shows a "Start from" picker above the title input (blank by default). */
+  templates?: TemplateOption[]
+  onSubmit: (title: string, templatePath: string | null) => void
   onCancel: () => void
 }
 
-/** Shared title-prompt dialog, used for both "new document" and "rename". */
+/** Shared title-prompt dialog, used for "new document"/"new snippet" (optionally with a template picker), and for "rename". */
 export function DocumentTitleDialog({
   heading,
   submitLabel,
   initialValue = '',
+  templates,
   onSubmit,
   onCancel,
 }: DocumentTitleDialogProps) {
   const [title, setTitle] = useState(initialValue)
+  const [templatePath, setTemplatePath] = useState('')
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const trimmed = title.trim()
     if (!trimmed) return
-    onSubmit(trimmed)
+    onSubmit(trimmed, templatePath || null)
   }
 
   return (
@@ -33,6 +42,23 @@ export function DocumentTitleDialog({
         onSubmit={handleSubmit}
       >
         <h3 className="text-lg font-semibold text-gray-100">{heading}</h3>
+        {templates && templates.length > 0 && (
+          <label className="mt-3 block text-xs text-gray-400">
+            Start from
+            <select
+              value={templatePath}
+              onChange={(event) => setTemplatePath(event.target.value)}
+              className="mt-1 w-full rounded border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-gray-100 focus:border-violet-400 focus:outline-none"
+            >
+              <option value="">Blank</option>
+              {templates.map((template) => (
+                <option key={template.path} value={template.path}>
+                  {template.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <input
           autoFocus
           type="text"
