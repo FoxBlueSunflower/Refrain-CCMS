@@ -85,9 +85,291 @@ banner updated everywhere → changelog written itself.
 
 ## PHASE 7 — Polish (post-interview, feedback-driven)
 Empty states, error toasts, keyboard shortcuts, onboarding tour text,
-first-run "put your workspace in a synced folder" nudge. License-key check
-(LemonSqueezy) ONLY when actually selling — not before.
+first-run "put your workspace in a synced folder" nudge. Licensing is
+Phase 10's job, not this phase's — see below.
 **Accept when:** a stranger completes create→edit→publish unaided.
+
+---
+
+## BUILD_PLAN.md — Extension (Phases 8–13)
+Same rules apply: plan mode → approve → build → acceptance checks → commit →
+`/clear`. Don't start a phase until the previous phase's acceptance list
+fully passes.
+
+This extension covers three goals that sit beyond the Phase 7 interview
+milestone:
+1. **Round out the single-user product** with editor UX and a Paligo-style
+   publication layer, both carried over from a parallel planning session
+   for a Spaces-model fork of this tool, stripped of anything that needed
+   a brand/cross-owner boundary to make sense (Phases 8–9)
+2. **Sell it** as the one-time-purchase single-user product (Phase 10)
+3. **Migrate it** into the cloud WeWeb/Supabase multi-user version that
+   Open Eppic itself can eventually build on (Phases 11–13)
+
+Phases 11-13 are the payoff of the architecture rule baked into CLAUDE.md
+from day one: `src/core/` (resolver, indexer, builder, snapshots) has zero
+React or browser imports specifically so it survives the jump to a server
+context unchanged. If any core module needed a rewrite to migrate, that
+would mean Phase 0-7 discipline slipped — check that first before writing
+new code. Phase 9's publication object belongs in `src/core/` too, under
+the same rule, so it migrates for free alongside everything else.
+
+## PHASE 8 — Editor UI: forms + pills, and reusable templates
+Four single-user-shaped features, carried over from the Spaces-prototype
+planning session, stripped of anything brand/cross-owner related. Each
+sub-part is independently buildable — don't treat this as one task.
+
+### 8a. Frontmatter-as-collapsible-form
+Replace the raw YAML/JSON frontmatter block with a structured form panel
+above the body editor: collapsed by default once a doc has been saved
+once (expand on click), expanded by default for new/empty docs. Known
+keys (title, tags, status, etc.) render as real form inputs; unknown/
+custom keys fall back to a simple key-value row so nothing is hidden or
+silently dropped. The raw YAML remains the underlying file format — the
+form is a view over it, so files stay plain-text and portable.
+**Accept when:**
+- [ ] Editing via the form and editing the raw file (outside the app)
+      produce identical results when the file is reopened
+- [ ] An unrecognized frontmatter key survives a round-trip without
+      being dropped
+
+### 8b. Variable pills
+Inline rendering of `{{variable_name}}` references as visually distinct
+pills, while the underlying saved file stays plain `{{variable_name}}`
+text. Pill shows the variable's current resolved value on hover/click.
+Typing `{{` triggers autocomplete across the whole workspace (no brand
+scoping needed — the one simplification versus the prototype's version).
+Broken references render as a distinct "broken pill" state, not a
+silent failure.
+**Accept when:**
+- [ ] Pills render correctly for both valid and broken references,
+      visually distinct from each other
+- [ ] Underlying saved file content is unchanged plain-text — pills are
+      a rendering layer only
+
+### 8c. Snippet pills
+Same pattern as 8b for `{{> snippet_name}}` references, with distinct
+pill styling from variable pills.
+**Accept when:** same criteria as 8b, applied to snippet references.
+
+### 8d. Doc and snippet templates
+A template is the same shape as a doc/snippet but with placeholder
+content instead of real content. "New from template" flow for both;
+basic template management UI (list, edit, archive). No cross-brand
+exception needed here — in a single-user workspace, every template is
+just available everywhere, which is the natural behavior anyway.
+**Accept when:**
+- [ ] Creating a doc/snippet from a template produces editable content
+      correctly seeded from the template
+- [ ] Editing a doc created from a template never changes the template
+
+### 8e. Highlight condition application (insertion)
+Carried over from the original prioritized list — this was dropped by
+mistake in an earlier pass of this doc and is restored here. UI sugar on
+top of the existing `:::when dimension=value` syntax (already spec'd):
+select text, apply a condition via a toolbar button or command palette
+rather than hand-typing the block delimiters. Applied conditions render
+as a distinct highlight/background color in the editor, with the
+condition expression visible on hover, so a document with several
+overlapping conditions stays legible at a glance rather than turning into
+a wall of raw `:::` markers.
+**Accept when:**
+- [ ] Selecting text and applying a condition via the UI produces byte-
+      identical `:::when` syntax to typing it by hand
+- [ ] Applied conditions are visually highlighted and distinguishable
+      from each other when multiple conditions exist in one document
+- [ ] Removing a condition via the UI cleanly restores plain text, no
+      leftover delimiter fragments
+
+### 8f. Block-insertion toolbar (lists, headings, etc.)
+New scope, raised directly: basic block-level markdown affordances —
+bulleted list, numbered list, blockquote, code block, horizontal rule —
+insertable via toolbar button or `/`-style command palette, not just by
+hand-typing markdown syntax. This is standard editor UX with no
+condition/brand logic involved, so it's a clean fit here.
+
+Scope this carefully — it's tempting to let "block editor" creep into a
+much bigger rewrite (drag-to-reorder blocks, nested block types, a real
+WYSIWYG model). That's out of scope for this sub-phase: the underlying
+file format stays plain markdown text (per Refrain's core architecture
+rule), and the toolbar is a convenience layer that inserts correct
+markdown syntax at the cursor — not a structural editor rebuild. If a
+true block-based editor is wanted later, that's a bigger, separate
+decision (and arguably conflicts with the "content never touches browser
+storage as anything but plain text" rule) — flag it rather than absorb it
+here.
+**Accept when:**
+- [ ] Each toolbar action inserts correct, valid markdown at the cursor
+      (or wraps a selection correctly, e.g. blockquote)
+- [ ] Existing hand-typed markdown for the same constructs renders
+      identically to toolbar-inserted versions — no divergent syntax paths
+- [ ] The heading toolbar option is limited to a single document-title H1
+      (see Phase 9a) once Phase 9 is in place — it should NOT offer H2-H6
+      as alternate "heading levels" for the title slot; H2-H6 remain
+      available as ordinary body-structure markdown, not toolbar-promoted
+      "heading" actions. Sequence or gate this accordingly if 8f ships
+      before 9a
+
+---
+
+## PHASE 9 — Publications (single-user Paligo layer)
+The one bigger addition worth carrying over: an ordered-tree composition
+layer above individual docs, minus the cross-brand composition that made
+it a Spaces feature. Everything else here is a legitimate gap in
+Refrain's original spec, which only ever planned single-document publish.
+
+- **9a. Heading normalization.** Each doc has exactly one H1 — its title,
+  the same title already carried in frontmatter — used as the doc's node
+  label when it's placed in a publication tree. H2-H6 remain free-form
+  for the doc's own internal structure; this rule is about there being a
+  single, unambiguous *title* per doc for hierarchy purposes, not about
+  limiting a doc to one heading total. Enforce (friendly warning, not a
+  hard block) in the editor going forward.
+- **9b. Publication object.** `publications/` folder; ordered tree of
+  references to docs (not copies) — nodes can be docs, or
+  structural-only headings that exist purely in the publication. See
+  SPEC.md Part 2 for the file shape.
+- **9c. Hierarchy assignment at publish time.** Resolver walks tree
+  depth, assigns heading levels based on position (the doc's own H1
+  becomes whatever level its tree depth implies; the doc's internal
+  H2-H6 shift down to stay nested correctly beneath it). Condition-tag
+  filtering happens BEFORE hierarchy assignment, so a filtered-out
+  branch doesn't leave a hierarchy gap.
+- **9d. Publication editor UI.** Drag-to-reorder, indent-to-nest, add
+  structural heading, add doc reference, remove node.
+- **9e. Doc where-used, extended.** Doc where-used now also lists every
+  publication that includes it.
+
+**Accept when:**
+- [ ] A publication renders with correct, gap-free heading hierarchy
+      after condition filtering
+- [ ] Reordering/nesting is reflected correctly in output heading levels
+- [ ] A doc's own internal H2-H6 structure remains intact and correctly
+      re-nested under its assigned title level after publication
+- [ ] Doc where-used correctly lists all publications containing it
+- [ ] Existing single-document publish still works unchanged for anyone
+      who doesn't use publications — this stays additive, not a replacement
+
+---
+
+## PHASE 10 — Sell it (license gate + landing)
+Only start this once Phase 7's "stranger completes create→edit→publish
+unaided" bar is met by an actual outside tester, not just you. (Phases 8-9
+can ship before or after this — they're not gating; sequenced first in
+this doc because they were the more concrete asks.)
+
+LemonSqueezy product + checkout; license-key input screen gates nothing in
+the editor itself (data always stays local and usable — the gate only
+blocks *new workspace creation* past a trial cap, e.g. 1 workspace / 10
+documents free). Simple static landing page (GitHub Pages, same repo or a
+`/site` subfolder) with the 5-minute demo script's beats turned into
+screenshots + a 60-second capture. Webhook or manual key list (whichever
+LemonSqueezy makes easier at this scale) checked client-side on launch.
+**Accept when:**
+- [ ] Trial cap enforced; entering a valid key removes it; invalid key
+      shows a clear, non-blocking message (never destroys existing content)
+- [ ] Landing page states the one-time price, what's local-only, and links
+      to checkout; checkout → email with key works end to end (test mode)
+- [ ] No license check exists inside `src/core/` — gate lives in `src/ui/`
+      only, so core modules stay portable to Phase 11 untouched
+
+---
+
+## PHASE 11 — Migration script (folder → rows)
+This is the phase the whole architecture was insurance for. Build the
+importer described in SPEC.md's mapping table, run against Supabase, but
+still *offline/CLI* — no server product yet, just proof the mapping holds.
+
+`scripts/migrate-to-supabase.ts`: Node script, takes a workspace folder path
++ Supabase project credentials; walks the folder per the SPEC.md mapping
+(documents → `documents` table, `snippets/` → `snippets` table,
+`variables.json` → `variables` rows, `.app/history/` snapshots → `versions`
+rows, publish-log.json → `publish_log` + `publish_log_entry` rows, plus
+`publications/` → `publications` + `publication_nodes` rows per Phase 9's
+tree structure);
+single-user-id assumed (your own account) for this phase — multi-tenant
+auth is Phase 12.
+**Accept when:**
+- [ ] Running the script against the SPEC.md sample workspace produces a
+      Supabase project whose row counts match the source file counts exactly
+      (N docs, N snippets, N variables, N snapshots — verify with a query)
+- [ ] Re-running the script on an unchanged folder is a no-op (idempotent —
+      no duplicate rows); re-running after an edit updates only what changed
+- [ ] A resolved document pulled back out of Supabase renders identically
+      to the local app's resolved preview for the same document (byte-diff
+      the rendered HTML, not just eyeball it)
+- [ ] Migration failures (bad frontmatter, orphaned snippet reference) list
+      every offending file with a reason; nothing partially imports silently
+
+---
+
+## PHASE 12 — Cloud core: same modules, server context
+Stand up a minimal Supabase schema (per the mapping table) + a thin API
+layer (Supabase Edge Functions, or a small Node/Express service if Edge
+Functions can't run the existing `src/core/` code as-is) that imports the
+**same** resolver/indexer/builder/snapshot/publication modules from Phases
+0-9, unmodified, now reading rows instead of files.
+
+**This phase is a test of the architecture rule, not a rewrite.** If
+`src/core/resolver.ts` needs changes to run server-side, treat that as a
+bug in the original module (it had a hidden browser dependency) and fix it
+minimally — don't fork the module into a client version and a server
+version.
+**Accept when:**
+- [ ] `src/core/*` files are byte-identical (or near-identical, diffable)
+      between the Phase 9 client app and the Phase 12 server service
+- [ ] Given the same workspace data, resolver/indexer/builder produce
+      identical output whether called from the browser app or the server
+- [ ] Auth: Supabase Row-Level Security scopes every table to
+      `auth.uid()` — one user cannot query another's documents even via
+      direct API call (verify with a second test account, not just code review)
+- [ ] Where-used index and publish still work against Supabase-backed data,
+      exercised through a bare API client (Postman/curl), no UI yet
+
+---
+
+## PHASE 13 — Multi-user shell (WeWeb, or thin React if WeWeb can't fit it)
+Wrap Phase 12's API in a real front end. Try WeWeb first since it's the
+stated target; if WeWeb's component model can't reasonably host a
+CodeMirror-based editor with live resolved preview, fall back to the
+existing React `src/ui/` components pointed at the new API instead of the
+File System Access layer — swap `src/fs/` for `src/api/`, keep `src/ui/`
+otherwise intact.
+
+Multi-tenant basics only: signup/login (Supabase Auth), one workspace per
+account to start (org/team sharing is out of scope here — first real
+scope decision for "OE-proper" territory, not this tool's job to solve).
+**Accept when:**
+- [ ] Two separate accounts, each with their own workspace, cannot see or
+      modify each other's documents (re-verify RLS through the actual UI)
+- [ ] Full loop works through the UI: sign up → create workspace → edit →
+      where-used → publish (including a multi-doc publication) → change
+      digest, matching Phases 0-9's local behavior feature-for-feature
+- [ ] Existing local-app users can run the Phase 11 migration script and
+      log into the cloud version to find their content intact
+- [ ] A cost check: current Supabase + hosting spend at your expected
+      account count stays under whatever monthly ceiling you set going in
+      (flag explicitly if it doesn't — don't let this drift silently)
+
+### ★ SECOND INTERVIEW-READY / SHIP-READY MILESTONE
+Demo script: same 5-minute local demo, plus a coda — "and here's the same
+tool, same data model, running multi-user in the cloud, because the core
+logic never had to be rewritten." That sentence is the actual point of
+Phases 0-9's discipline; Phase 13 is where it gets to be true out loud.
+
+---
+
+## What's deliberately NOT in this extension
+- Team/org sharing, permissions beyond owner — first real Open Eppic-shaped
+  decision (element ownership, derivative works) and shouldn't be
+  backfilled into this tool's scope without deciding it's the same product
+- Payment/subscription billing for the cloud version — Phase 10's
+  one-time-purchase model doesn't automatically become a SaaS plan; that's
+  a pricing decision to make deliberately, not inherit by default
+- Anything from Open Eppic's actual schema (elements, works, revenue
+  splits) — this tool stays a generic reuse engine; conflating it with the
+  Open Eppic platform's domain model is the drift CLAUDE.md's terminology
+  fence exists to prevent
 
 ---
 
