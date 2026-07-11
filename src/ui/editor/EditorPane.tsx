@@ -118,8 +118,8 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
   }
 
   function insertCondition(dimension: string, value: string) {
-    const opening = `:::when ${dimension}=${value}\n`
-    insert(`${opening}\n:::\n`, opening.length)
+    editorRef.current?.wrapSelectionWithCondition(dimension, value)
+    setPaletteOpen(false)
   }
 
   const hasItems = completionItems.variables.length > 0 || completionItems.snippets.length > 0

@@ -178,11 +178,11 @@ condition expression visible on hover, so a document with several
 overlapping conditions stays legible at a glance rather than turning into
 a wall of raw `:::` markers.
 **Accept when:**
-- [ ] Selecting text and applying a condition via the UI produces byte-
+- [x] Selecting text and applying a condition via the UI produces byte-
       identical `:::when` syntax to typing it by hand
-- [ ] Applied conditions are visually highlighted and distinguishable
+- [x] Applied conditions are visually highlighted and distinguishable
       from each other when multiple conditions exist in one document
-- [ ] Removing a condition via the UI cleanly restores plain text, no
+- [x] Removing a condition via the UI cleanly restores plain text, no
       leftover delimiter fragments
 
 ### 8f. Block-insertion toolbar (lists, headings, etc.)
