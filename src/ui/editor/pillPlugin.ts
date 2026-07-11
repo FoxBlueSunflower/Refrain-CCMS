@@ -1,5 +1,6 @@
 import { EditorSelection, StateEffect, type Extension } from '@codemirror/state'
 import { Decoration, EditorView, MatchDecorator, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view'
+import { parseFrontmatter } from '../../core/frontmatter/parse'
 import { createTokenPattern } from '../../core/resolver/tokens'
 import type { ResolveContext } from '../../core/resolver/types'
 
@@ -37,16 +38,57 @@ class VariablePillWidget extends WidgetType {
   }
 }
 
+class SnippetPillWidget extends WidgetType {
+  private readonly from: number
+  private readonly name: string
+  private readonly raw: string | undefined
+
+  constructor(from: number, name: string, raw: string | undefined) {
+    super()
+    this.from = from
+    this.name = name
+    this.raw = raw
+  }
+
+  eq(other: SnippetPillWidget): boolean {
+    return other.name === this.name && other.raw === this.raw
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const broken = this.raw === undefined
+    const span = document.createElement('span')
+    span.className = broken ? 'rf-pill rf-pill-snippet rf-pill-broken' : 'rf-pill rf-pill-snippet'
+    span.textContent = `> ${this.name}`
+    if (broken) {
+      span.title = `Snippet "${this.name}" was not found in snippets/.`
+    } else {
+      const { frontmatter } = parseFrontmatter(this.raw as string)
+      const description = typeof frontmatter.description === 'string' ? frontmatter.description.trim() : ''
+      span.title = description.length > 0 ? description : `Snippet "${this.name}" has no description.`
+    }
+    span.addEventListener('mousedown', (event) => {
+      event.preventDefault()
+      view.dispatch({ selection: EditorSelection.cursor(this.from) })
+      view.focus()
+    })
+    return span
+  }
+}
+
 function createMatcher(getResolveContext: () => ResolveContext): MatchDecorator {
   return new MatchDecorator({
     regexp: createTokenPattern(),
     decorate(add, from, to, match, view) {
-      if (match[1] === '>') return // {{> snippet}} refs are left plain — see Phase 8c
-
       const selection = view.state.selection.main
       if (selection.from <= to && selection.to >= from) return // cursor touches this token — leave it as editable raw text
 
       const key = match[2]
+      if (match[1] === '>') {
+        const raw = getResolveContext().snippets[key]
+        add(from, to, Decoration.replace({ widget: new SnippetPillWidget(from, key, raw) }))
+        return
+      }
+
       const value = getResolveContext().variables[key]?.value
       add(from, to, Decoration.replace({ widget: new VariablePillWidget(from, key, value) }))
     },
@@ -54,11 +96,12 @@ function createMatcher(getResolveContext: () => ResolveContext): MatchDecorator 
 }
 
 /**
- * Renders {{variable_name}} references as pills (Phase 8b), collapsing back
- * to raw text while the cursor is inside one so it stays editable. Purely a
- * display layer — the underlying document text is never touched.
+ * Renders {{variable_name}} (Phase 8b) and {{> snippet_name}} (Phase 8c)
+ * references as pills, collapsing back to raw text while the cursor is
+ * inside one so it stays editable. Purely a display layer — the underlying
+ * document text is never touched.
  */
-export function createVariablePillPlugin(getResolveContext: () => ResolveContext): Extension {
+export function createPillPlugin(getResolveContext: () => ResolveContext): Extension {
   const matcher = createMatcher(getResolveContext)
 
   return ViewPlugin.fromClass(

@@ -9,7 +9,7 @@ import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
 import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
 import { createConditionCompletionSource, createTokenCompletionSource, type TokenCompletionItems } from './completions'
-import { createVariablePillPlugin, refreshPillsEffect } from './pillPlugin'
+import { createPillPlugin, refreshPillsEffect } from './pillPlugin'
 
 // Overrides CodeMirror's default light-mode link/URL color (a dark indigo,
 // `#219`), which is nearly illegible against this editor's dark background.
@@ -105,7 +105,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
             createConditionCompletionSource(() => conditionsFileRef.current),
           ],
         }),
-        createVariablePillPlugin(() => resolveContextRef.current),
+        createPillPlugin(() => resolveContextRef.current),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString())
@@ -138,6 +138,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
             fontSize: '0.9em',
           },
           '.rf-pill-variable': { backgroundColor: '#312e81', color: '#c7d2fe', border: '1px solid #4c1d95' },
+          '.rf-pill-snippet': { backgroundColor: '#134e4a', color: '#99f6e4', border: '1px solid #0f766e' },
           '.rf-pill-broken': { backgroundColor: '#450a0a', color: '#fca5a5', border: '1px dashed #b91c1c' },
         }),
       ],
