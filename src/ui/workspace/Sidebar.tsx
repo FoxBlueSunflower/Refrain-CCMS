@@ -1,8 +1,9 @@
-import { useEffect, useState, type DragEvent } from 'react'
+import { useState, type DragEvent } from 'react'
 import { computeReorder } from '../../core/workspace/reorder'
 import type { DocTreeNode } from '../../core/workspace/types'
 import { readDocTree, readSnippetList } from '../../fs'
 import { EmptyState } from '../shared/EmptyState'
+import { useDirTree } from './useDirTree'
 
 type Section = 'document' | 'snippet'
 type NodeKind = 'file' | 'folder'
@@ -44,6 +45,7 @@ interface SidebarProps {
   onOpenWhereUsed?: () => void
   onOpenPublish?: () => void
   onOpenHistory?: () => void
+  onOpenTemplates?: () => void
   onOpenTour?: () => void
   onNewDocument?: () => void
   onNewDocumentFolder?: () => void
@@ -68,33 +70,6 @@ interface SidebarProps {
   onOpenProfiles?: () => void
   /** Bump this to force the tree to re-fetch after an external change. */
   refreshToken?: number
-}
-
-function useTree(
-  fetcher: (handle: FileSystemDirectoryHandle) => Promise<DocTreeNode[]>,
-  handle: FileSystemDirectoryHandle,
-  refreshToken: number | undefined,
-) {
-  const [tree, setTree] = useState<DocTreeNode[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setTree(null)
-    setError(null)
-    fetcher(handle)
-      .then((result) => {
-        if (!cancelled) setTree(result)
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [fetcher, handle, refreshToken])
-
-  return { tree, error }
 }
 
 function useCollapsedState() {
@@ -148,6 +123,7 @@ export function Sidebar({
   onOpenWhereUsed,
   onOpenPublish,
   onOpenHistory,
+  onOpenTemplates,
   onOpenTour,
   onNewDocument,
   onNewDocumentFolder,
@@ -172,8 +148,8 @@ export function Sidebar({
   onOpenProfiles,
   refreshToken,
 }: SidebarProps) {
-  const docs = useTree(readDocTree, handle, refreshToken)
-  const snippets = useTree(readSnippetList, handle, refreshToken)
+  const docs = useDirTree(readDocTree, handle, refreshToken)
+  const snippets = useDirTree(readSnippetList, handle, refreshToken)
   const docsCollapsed = useCollapsedState()
   const snippetsCollapsed = useCollapsedState()
 
@@ -236,6 +212,15 @@ export function Sidebar({
               onClick={onOpenHistory}
             >
               History
+            </button>
+          )}
+          {onOpenTemplates && (
+            <button
+              type="button"
+              className="rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
+              onClick={onOpenTemplates}
+            >
+              Templates
             </button>
           )}
           {onOpenTour && (

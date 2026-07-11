@@ -6,6 +6,7 @@ import { splitPath } from '../core/workspace/paths'
 import type { FolderMeta, RawEntry } from '../core/workspace/types'
 import {
   copyDirectory,
+  directoryExists,
   FsWriteError,
   listDirectory,
   pathExists,
@@ -101,6 +102,41 @@ async function listPathsRecursive(dir: FileSystemDirectoryHandle, prefix: string
       entries.push({ path, kind: 'file' })
     }),
   )
+}
+
+/** Finds a free path under `baseDir`/`parentPath` for `base`, suffixing -2, -3, ... on collision. */
+export async function findUniqueFilePath(
+  handle: FileSystemDirectoryHandle,
+  baseDir: string,
+  parentPath: string,
+  base: string,
+): Promise<string> {
+  const stem = base.endsWith('.md') ? base.slice(0, -3) : base
+  const dir = parentPath ? `${baseDir}/${parentPath}` : baseDir
+  let candidate = `${dir}/${stem}.md`
+  let n = 2
+  while (await pathExists(handle, candidate)) {
+    candidate = `${dir}/${stem}-${n}.md`
+    n += 1
+  }
+  return candidate
+}
+
+/** Finds a free folder path under `baseDir`/`parentPath` for `base`, suffixing -2, -3, ... on collision. */
+export async function findUniqueFolderPath(
+  handle: FileSystemDirectoryHandle,
+  baseDir: string,
+  parentPath: string,
+  base: string,
+): Promise<string> {
+  const dir = parentPath ? `${baseDir}/${parentPath}` : baseDir
+  let candidate = `${dir}/${base}`
+  let n = 2
+  while (await directoryExists(handle, candidate)) {
+    candidate = `${dir}/${base}-${n}`
+    n += 1
+  }
+  return candidate
 }
 
 export async function createFolder(dir: FileSystemDirectoryHandle, path: string): Promise<void> {

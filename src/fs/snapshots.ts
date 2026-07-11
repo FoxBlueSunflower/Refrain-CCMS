@@ -1,7 +1,16 @@
 import type { PublishLogEntry, SnapshotFile, SnapshotKind } from '../core/snapshots/types'
 import { parseSnapshotDirName, snapshotDirName } from '../core/snapshots/naming'
-import { APP_DIR, CONDITIONS_FILE, DOCS_DIR, SNIPPETS_DIR, VARIABLES_FILE } from '../core/workspace/constants'
-import { clearDirectory, copyDirectory, copyFile, listDirectory, pathExists, readTextFile, writeTextFile } from './directory'
+import { APP_DIR, CONDITIONS_FILE, DOCS_DIR, SNIPPETS_DIR, TEMPLATES_DIR, VARIABLES_FILE } from '../core/workspace/constants'
+import {
+  clearDirectory,
+  copyDirectory,
+  copyFile,
+  directoryExists,
+  listDirectory,
+  pathExists,
+  readTextFile,
+  writeTextFile,
+} from './directory'
 import { readAllDocuments } from './index-data'
 import { readAllSnippets } from './resolver-data'
 
@@ -74,7 +83,7 @@ async function readTreeSnapshotFiles(rootHandle: FileSystemDirectoryHandle): Pro
   return files
 }
 
-/** Copies docs/, snippets/, variables.json, and conditions.json into a new .app/history/<timestamp>_<kind>/ folder. Returns the new folder's name. */
+/** Copies docs/, snippets/, templates/, variables.json, and conditions.json into a new .app/history/<timestamp>_<kind>/ folder. Returns the new folder's name. */
 export async function writeSnapshot(
   dir: FileSystemDirectoryHandle,
   kind: SnapshotKind,
@@ -85,6 +94,7 @@ export async function writeSnapshot(
   const base = `${HISTORY_DIR}/${name}`
   await copyDirectory(dir, DOCS_DIR, `${base}/${DOCS_DIR}`)
   await copyDirectory(dir, SNIPPETS_DIR, `${base}/${SNIPPETS_DIR}`)
+  await copyDirectory(dir, TEMPLATES_DIR, `${base}/${TEMPLATES_DIR}`)
   if (await pathExists(dir, VARIABLES_FILE)) await copyFile(dir, VARIABLES_FILE, `${base}/${VARIABLES_FILE}`)
   if (await pathExists(dir, CONDITIONS_FILE)) await copyFile(dir, CONDITIONS_FILE, `${base}/${CONDITIONS_FILE}`)
   return name
@@ -121,6 +131,11 @@ export async function readCurrentSnapshotFiles(dir: FileSystemDirectoryHandle): 
  * nothing is ever destroyed, then overwrites docs/, snippets/, variables.json,
  * and conditions.json from the chosen snapshot. Returns the pre-restore
  * safety snapshot's name.
+ *
+ * templates/ is restored only when the chosen snapshot actually has one —
+ * snapshots taken before templates/ existed have nothing to restore it from,
+ * and unconditionally clearing the live templates/ in that case would
+ * silently destroy current templates with no way to bring them back.
  */
 export async function restoreSnapshot(dir: FileSystemDirectoryHandle, snapshotName: string): Promise<string> {
   const safetyName = await writeSnapshot(dir, 'restore')
@@ -130,6 +145,10 @@ export async function restoreSnapshot(dir: FileSystemDirectoryHandle, snapshotNa
   await clearDirectory(dir, SNIPPETS_DIR)
   await copyDirectory(dir, `${base}/${DOCS_DIR}`, DOCS_DIR)
   await copyDirectory(dir, `${base}/${SNIPPETS_DIR}`, SNIPPETS_DIR)
+  if (await directoryExists(dir, `${base}/${TEMPLATES_DIR}`)) {
+    await clearDirectory(dir, TEMPLATES_DIR)
+    await copyDirectory(dir, `${base}/${TEMPLATES_DIR}`, TEMPLATES_DIR)
+  }
   if (await pathExists(dir, `${base}/${VARIABLES_FILE}`)) await copyFile(dir, `${base}/${VARIABLES_FILE}`, VARIABLES_FILE)
   if (await pathExists(dir, `${base}/${CONDITIONS_FILE}`)) await copyFile(dir, `${base}/${CONDITIONS_FILE}`, CONDITIONS_FILE)
 

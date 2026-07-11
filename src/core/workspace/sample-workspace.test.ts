@@ -24,6 +24,8 @@ describe('buildSampleWorkspaceFiles', () => {
         'docs/guides/installation.md',
         'snippets/warning-banner.md',
         'snippets/support-contact.md',
+        'templates/docs/release-notes.md',
+        'templates/snippets/callout.md',
       ].sort(),
     )
   })
@@ -88,6 +90,19 @@ describe('buildSampleWorkspaceFiles', () => {
       expect(md).toContain('forked_from_snapshot:')
     })
   }
+
+  it('seeds a document template with title/description placeholder frontmatter', () => {
+    const md = fileAt('templates/docs/release-notes.md')
+    expect(md).toContain('title:')
+    expect(md).toContain('description:')
+  })
+
+  it('seeds a snippet template with all four lineage fields, unforked', () => {
+    const md = fileAt('templates/snippets/callout.md')
+    expect(md).toContain('name:')
+    expect(md).toContain('forked_from: null')
+    expect(md).toContain('forked_from_snapshot: null')
+  })
 
   it('is a pure function returning fresh data each call', () => {
     const a = buildSampleWorkspaceFiles()
