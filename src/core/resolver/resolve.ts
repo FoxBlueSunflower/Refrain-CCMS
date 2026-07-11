@@ -1,5 +1,5 @@
 import { parseFrontmatter } from '../frontmatter/parse'
-import { IDENTIFIER_CHARS } from '../workspace/identifier-keys'
+import { createTokenPattern } from './tokens'
 import type { ResolveContext, ResolveResult, ResolverWarning } from './types'
 
 /**
@@ -8,8 +8,6 @@ import type { ResolveContext, ResolveResult, ResolverWarning } from './types'
  * snippet-in-snippet allowed" per SPEC.md). Depth 3 is refused.
  */
 const MAX_SNIPPET_DEPTH = 2
-
-const TOKEN_PATTERN = new RegExp(`\\{\\{(>)?\\s*([${IDENTIFIER_CHARS}]+)\\s*\\}\\}`, 'g')
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -64,7 +62,7 @@ function resolveSnippetRef(
 }
 
 function resolveBody(body: string, ctx: ResolveContext, ancestors: readonly string[], depth: number, warnings: ResolverWarning[]): string {
-  return body.replace(TOKEN_PATTERN, (_match, marker: string | undefined, key: string) => {
+  return body.replace(createTokenPattern(), (_match, marker: string | undefined, key: string) => {
     if (marker === '>') return resolveSnippetRef(key, ctx, ancestors, depth, warnings)
     return resolveVariableRef(key, ctx, warnings)
   })
