@@ -189,24 +189,40 @@ describe('buildHorizontalRuleInsertion', () => {
 })
 
 describe('buildSpaceInsertion', () => {
-  it('inserts a blank line at the very start of an empty document', () => {
-    const result = buildSpaceInsertion(0, 0)
-    expect(result.insertText).toBe('\n\n')
+  it('inserts a bare nbsp paragraph at the very start of an empty document', () => {
+    const doc = ''
+    const result = buildSpaceInsertion(doc, 0, 0)
+    expect(result.insertText).toBe('&nbsp;')
   })
 
-  it('inserts a blank line right after text with no trailing newline', () => {
+  it('pads with a blank line before a paragraph inserted right after text (no trailing newline)', () => {
     const doc = 'Some text.'
-    const result = buildSpaceInsertion(doc.length, doc.length)
+    const result = buildSpaceInsertion(doc, doc.length, doc.length)
+    expect(result.insertText).toBe('\n\n&nbsp;')
     const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
-    expect(combined).toBe('Some text.\n\n')
+    expect(combined).toBe('Some text.\n\n&nbsp;')
+  })
+
+  it('adds no padding when already separated by a blank line', () => {
+    const doc = 'Some text.\n\n'
+    const result = buildSpaceInsertion(doc, doc.length, doc.length)
+    expect(result.insertText).toBe('&nbsp;')
+  })
+
+  it('pads on both sides when inserted in the middle of a document with adjacent text', () => {
+    const doc = 'Before.\nAfter.'
+    const from = doc.indexOf('\nAfter') + 1
+    const result = buildSpaceInsertion(doc, from, from)
+    const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
+    expect(combined).toBe('Before.\n\n&nbsp;\n\nAfter.')
   })
 
   it('discards a non-empty selection rather than wrapping it', () => {
     const doc = 'Before SELECTED After'
     const from = doc.indexOf('SELECTED')
     const to = from + 'SELECTED'.length
-    const result = buildSpaceInsertion(from, to)
+    const result = buildSpaceInsertion(doc, from, to)
     const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
-    expect(combined).toBe('Before \n\n After')
+    expect(combined).toBe('Before \n\n&nbsp;\n\n After')
   })
 })
