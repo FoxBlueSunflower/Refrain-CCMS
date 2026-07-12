@@ -7,12 +7,14 @@ import { EmptyState } from '../shared/EmptyState'
 interface WhereUsedPanelProps {
   variables: VariablesFile
   snippets: SnippetSource
+  documents: string[]
   index: WorkspaceIndex
   onOpenDocument: (docPath: string) => void
+  onOpenPublication: (path: string) => void
   onClose: () => void
 }
 
-type Kind = 'variable' | 'snippet'
+type Kind = 'variable' | 'snippet' | 'document'
 type Selection = { kind: Kind; key: string } | null
 
 function docLabel(docPath: string): string {
@@ -20,17 +22,36 @@ function docLabel(docPath: string): string {
   return name.endsWith('.md') ? name.slice(0, -3) : name
 }
 
-/** All known keys for a kind: defined ones (variables.json / snippets/) plus any extra key only seen in the index (e.g. a typo'd reference), sorted. */
-function allKeys(defined: string[], used: Record<string, string[]>): string[] {
+/** All known keys for a kind: defined ones (variables.json / snippets/ / docs/) plus any extra key only seen in the index (e.g. a typo'd reference), sorted. */
+function allKeys(defined: string[], used: Record<string, unknown>): string[] {
   return [...new Set([...defined, ...Object.keys(used)])].sort()
 }
 
-export function WhereUsedPanel({ variables, snippets, index, onOpenDocument, onClose }: WhereUsedPanelProps) {
+function kindLabel(kind: Kind): string {
+  if (kind === 'variable') return 'Variable'
+  if (kind === 'snippet') return 'Snippet'
+  return 'Document'
+}
+
+export function WhereUsedPanel({
+  variables,
+  snippets,
+  documents,
+  index,
+  onOpenDocument,
+  onOpenPublication,
+  onClose,
+}: WhereUsedPanelProps) {
   const [selection, setSelection] = useState<Selection>(null)
 
   const variableKeys = allKeys(Object.keys(variables), index.variables)
   const snippetKeys = allKeys(Object.keys(snippets), index.snippets)
-  const usedBy = selection ? (selection.kind === 'variable' ? index.variables : index.snippets)[selection.key] ?? [] : []
+  const documentKeys = allKeys(documents, index.documentPublications)
+  const usedBy =
+    selection && selection.kind !== 'document'
+      ? (selection.kind === 'variable' ? index.variables : index.snippets)[selection.key] ?? []
+      : []
+  const usedInPublications = selection && selection.kind === 'document' ? index.documentPublications[selection.key] ?? [] : []
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
@@ -72,12 +93,28 @@ export function WhereUsedPanel({ variables, snippets, index, onOpenDocument, onC
               <span className="ml-2 shrink-0 text-xs text-gray-400">{index.snippets[key]?.length ?? 0}</span>
             </button>
           ))}
+
+          <p className="mt-3 mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Documents</p>
+          {documentKeys.length === 0 && <EmptyState title="None yet" />}
+          {documentKeys.map((key) => (
+            <button
+              key={`document-${key}`}
+              type="button"
+              className={`flex items-center justify-between rounded px-2 py-1 text-left text-sm hover:bg-gray-700 ${
+                selection?.kind === 'document' && selection.key === key ? 'bg-gray-700 text-gray-100' : 'text-gray-300'
+              }`}
+              onClick={() => setSelection({ kind: 'document', key })}
+            >
+              <span className="truncate">{docLabel(key)}</span>
+              <span className="ml-2 shrink-0 text-xs text-gray-400">{index.documentPublications[key]?.length ?? 0}</span>
+            </button>
+          ))}
         </div>
 
         <div className="flex flex-1 flex-col p-4">
           <div className="mb-3 flex items-center justify-between">
             <h4 className="truncate text-sm font-medium text-gray-100">
-              {selection ? `${selection.kind === 'variable' ? 'Variable' : 'Snippet'}: ${selection.key}` : 'Pick an item'}
+              {selection ? `${kindLabel(selection.kind)}: ${selection.kind === 'document' ? docLabel(selection.key) : selection.key}` : 'Pick an item'}
             </h4>
             <button
               type="button"
@@ -88,11 +125,11 @@ export function WhereUsedPanel({ variables, snippets, index, onOpenDocument, onC
             </button>
           </div>
 
-          {!selection && <p className="text-sm text-gray-400">Select a variable or snippet on the left to see where it's used.</p>}
+          {!selection && <p className="text-sm text-gray-400">Select a variable, snippet, or document on the left to see where it's used.</p>}
 
-          {selection && usedBy.length === 0 && <EmptyState title="Not used anywhere yet" />}
+          {selection && selection.kind !== 'document' && usedBy.length === 0 && <EmptyState title="Not used anywhere yet" />}
 
-          {selection && usedBy.length > 0 && (
+          {selection && selection.kind !== 'document' && usedBy.length > 0 && (
             <ul className="flex-1 space-y-1 overflow-auto">
               {usedBy.map((docPath) => (
                 <li key={docPath}>
@@ -103,6 +140,27 @@ export function WhereUsedPanel({ variables, snippets, index, onOpenDocument, onC
                   >
                     {docLabel(docPath)}
                     <span className="ml-2 text-xs text-gray-500">{docPath}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {selection && selection.kind === 'document' && usedInPublications.length === 0 && (
+            <EmptyState title="Not included in any publication yet" />
+          )}
+
+          {selection && selection.kind === 'document' && usedInPublications.length > 0 && (
+            <ul className="flex-1 space-y-1 overflow-auto">
+              {usedInPublications.map((pub) => (
+                <li key={pub.path}>
+                  <button
+                    type="button"
+                    className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                    onClick={() => onOpenPublication(pub.path)}
+                  >
+                    {pub.title}
+                    <span className="ml-2 text-xs text-gray-500">{pub.path}</span>
                   </button>
                 </li>
               ))}

@@ -1,5 +1,6 @@
+import { collectDocRefs } from '../publications/tree'
 import { collectRefs, type ScannedRefs } from './scan'
-import type { IndexDocument, IndexInput, IndexSnippet, WorkspaceIndex } from './types'
+import type { DocPublicationRef, IndexDocument, IndexInput, IndexPublication, IndexSnippet, WorkspaceIndex } from './types'
 
 /**
  * Snippet transclusion is expanded at most two levels deep (doc -> snippet
@@ -60,10 +61,28 @@ function invert(entries: Array<readonly [string, Set<string>]>): Record<string, 
   return result
 }
 
+/** doc path -> publications that include it, sorted by publication title. */
+function buildDocumentPublications(publications: IndexPublication[]): Record<string, DocPublicationRef[]> {
+  const map = new Map<string, DocPublicationRef[]>()
+  for (const pub of publications) {
+    for (const ref of collectDocRefs(pub.nodes)) {
+      const list = map.get(ref) ?? []
+      list.push({ path: pub.path, title: pub.title })
+      map.set(ref, list)
+    }
+  }
+  const result: Record<string, DocPublicationRef[]> = {}
+  for (const [docPath, refs] of map) {
+    result[docPath] = refs.sort((a, b) => a.title.localeCompare(b.title))
+  }
+  return result
+}
+
 /**
  * Builds the where-used index: for every variable, snippet, and condition,
  * the sorted list of document paths that use it — directly, or transitively
- * through a transcluded snippet.
+ * through a transcluded snippet — plus, for every document, the publications
+ * that include it.
  */
 export function buildWorkspaceIndex(input: IndexInput, builtAt: string = new Date().toISOString()): WorkspaceIndex {
   const snippetRefs = new Map<string, ScannedRefs>(
@@ -77,5 +96,6 @@ export function buildWorkspaceIndex(input: IndexInput, builtAt: string = new Dat
     variables: invert(perDoc.map(([path, usage]) => [path, usage.variables] as const)),
     snippets: invert(perDoc.map(([path, usage]) => [path, usage.snippets] as const)),
     conditions: invert(perDoc.map(([path, usage]) => [path, usage.conditions] as const)),
+    documentPublications: buildDocumentPublications(input.publications ?? []),
   }
 }

@@ -286,7 +286,7 @@ Refrain's original spec, which only ever planned single-document publish.
 - [ ] Reordering/nesting is reflected correctly in output heading levels
 - [ ] A doc's own internal H2-H6 structure remains intact and correctly
       re-nested under its assigned title level after publication
-- [ ] Doc where-used correctly lists all publications containing it
+- [x] Doc where-used correctly lists all publications containing it
 - [ ] Existing single-document publish still works unchanged for anyone
       who doesn't use publications — this stays additive, not a replacement
 

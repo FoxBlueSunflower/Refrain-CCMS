@@ -1,5 +1,5 @@
 import { countNodes } from '../core/publications/tree'
-import type { Publication } from '../core/publications/types'
+import type { Publication, PublicationNode } from '../core/publications/types'
 import { validatePublication } from '../core/publications/validate'
 import { PUBLICATIONS_DIR } from '../core/workspace/constants'
 import { slugify } from '../core/workspace/paths'
@@ -13,31 +13,50 @@ export interface PublicationSummary {
   nodeCount: number
 }
 
-async function readPublicationSummary(
+export interface PublicationRefs {
+  /** Filename relative to publications/, e.g. "user-guide.json". */
+  path: string
+  title: string
+  nodes: PublicationNode[]
+}
+
+async function readValidPublication(
   dirHandle: FileSystemDirectoryHandle,
   fileName: string,
-): Promise<PublicationSummary | null> {
+): Promise<{ path: string; publication: Publication } | null> {
   try {
     const raw = await readTextFile(dirHandle, fileName)
     const result = validatePublication(JSON.parse(raw))
-    if (!result.ok) return null
-    return { path: fileName, title: result.value.title, nodeCount: countNodes(result.value.nodes) }
+    return result.ok ? { path: fileName, publication: result.value } : null
   } catch {
     // Malformed publication file — skipped rather than crashing the panel.
     return null
   }
 }
 
-/** Lists every publication under publications/, sorted by title. Malformed files are skipped (fail-soft, same as _folder.json). */
-export async function readAllPublications(rootHandle: FileSystemDirectoryHandle): Promise<PublicationSummary[]> {
+async function readAllValidPublications(
+  rootHandle: FileSystemDirectoryHandle,
+): Promise<Array<{ path: string; publication: Publication }>> {
   const dirHandle = await resolveDirectoryHandle(rootHandle, PUBLICATIONS_DIR, { create: true })
   const listing = await listDirectory(dirHandle)
   const jsonFiles = listing.filter((entry) => entry.kind === 'file' && entry.name.endsWith('.json'))
 
-  const summaries = await Promise.all(jsonFiles.map((entry) => readPublicationSummary(dirHandle, entry.name)))
-  return summaries
-    .filter((s): s is PublicationSummary => s !== null)
+  const results = await Promise.all(jsonFiles.map((entry) => readValidPublication(dirHandle, entry.name)))
+  return results.filter((r): r is { path: string; publication: Publication } => r !== null)
+}
+
+/** Lists every publication under publications/, sorted by title. Malformed files are skipped (fail-soft, same as _folder.json). */
+export async function readAllPublications(rootHandle: FileSystemDirectoryHandle): Promise<PublicationSummary[]> {
+  const results = await readAllValidPublications(rootHandle)
+  return results
+    .map(({ path, publication }) => ({ path, title: publication.title, nodeCount: countNodes(publication.nodes) }))
     .sort((a, b) => a.title.localeCompare(b.title))
+}
+
+/** Same as readAllPublications, but carries the full node tree — used to build the doc-to-publications where-used index. */
+export async function readAllPublicationRefs(rootHandle: FileSystemDirectoryHandle): Promise<PublicationRefs[]> {
+  const results = await readAllValidPublications(rootHandle)
+  return results.map(({ path, publication }) => ({ path, title: publication.title, nodes: publication.nodes }))
 }
 
 export async function readPublication(
