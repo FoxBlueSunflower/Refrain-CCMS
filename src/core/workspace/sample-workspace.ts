@@ -62,7 +62,7 @@ description: A five-minute tour of the basics.
 order: 1
 ---
 
-# Getting Started
+# Getting Started with {{product_name}}
 
 {{product_name}} version {{version}} is ready when you are.
 
