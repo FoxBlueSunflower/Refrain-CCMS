@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { validatePublication } from '../publications/validate'
 import { buildSampleWorkspaceFiles } from './sample-workspace'
 import { validateConditionsFile, validateVariablesFile, validateWorkspaceConfig } from './validate'
 
@@ -26,6 +27,7 @@ describe('buildSampleWorkspaceFiles', () => {
         'snippets/support-contact.md',
         'templates/docs/release-notes.md',
         'templates/snippets/callout.md',
+        'publications/user-guide.json',
       ].sort(),
     )
   })
@@ -102,6 +104,18 @@ describe('buildSampleWorkspaceFiles', () => {
     expect(md).toContain('name:')
     expect(md).toContain('forked_from: null')
     expect(md).toContain('forked_from_snapshot: null')
+  })
+
+  it('produces a publications/user-guide.json that passes validation and references real sample docs', () => {
+    const parsed: unknown = JSON.parse(fileAt('publications/user-guide.json'))
+    const result = validatePublication(parsed)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.title).toBe('User Guide')
+      const docPaths = ['docs/index.md', 'docs/getting-started.md', 'docs/guides/installation.md']
+      const allPaths = buildSampleWorkspaceFiles().map((f) => f.path)
+      for (const path of docPaths) expect(allPaths).toContain(path)
+    }
   })
 
   it('is a pure function returning fresh data each call', () => {

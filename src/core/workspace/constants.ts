@@ -4,6 +4,7 @@ export const PUBLISH_DIR = 'publish'
 export const APP_DIR = '.app'
 export const TEMPLATES_DIR = 'templates'
 export const TEMPLATE_ARCHIVED_SUBDIR = 'archived'
+export const PUBLICATIONS_DIR = 'publications'
 
 export const WORKSPACE_FILE = 'workspace.json'
 export const VARIABLES_FILE = 'variables.json'
