@@ -8,6 +8,7 @@ import type { BlockAction } from './blockEditing'
 import { CodeMirrorEditor, type CodeMirrorEditorHandle } from './CodeMirrorEditor'
 import type { TokenCompletionItems } from './completions'
 import { FrontmatterFormPanel } from './FrontmatterFormPanel'
+import { InsertToolbar } from './InsertToolbar'
 import { PreviewPane } from './PreviewPane'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -35,19 +36,6 @@ interface EditorPaneProps {
   onSave: () => void
   onNavigate: (relPath: string) => void
 }
-
-// Phase 8f: block-insertion toolbar actions, listed in the Insert dropdown's
-// "Blocks" section. Deliberately excludes headings — Refrain's title/H1
-// normalization rule lands in Phase 9a, and a heading toolbar action needs
-// to be gated to a single document-title H1 once that rule exists (see
-// BUILD_PLAN.md 8f), so it's left out here rather than added ungated.
-const BLOCK_ACTIONS: { action: BlockAction; label: string }[] = [
-  { action: 'bullet-list', label: 'Bulleted list' },
-  { action: 'numbered-list', label: 'Numbered list' },
-  { action: 'blockquote', label: 'Blockquote' },
-  { action: 'code-block', label: 'Code block' },
-  { action: 'horizontal-rule', label: 'Horizontal rule' },
-]
 
 function statusLabel(dirty: boolean, saveStatus: SaveStatus): { text: string; className: string } {
   if (saveStatus === 'saving') return { text: 'Saving…', className: 'text-gray-400' }
@@ -78,7 +66,6 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
 ) {
   const status = statusLabel(dirty, saveStatus)
   const editorRef = useRef<CodeMirrorEditorHandle | null>(null)
-  const [paletteOpen, setPaletteOpen] = useState(false)
   const [previewVisible, setPreviewVisible] = useState(true)
   const [frontmatterCollapsed, setFrontmatterCollapsed] = useState(!justCreated)
 
@@ -128,107 +115,21 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
 
   function insert(text: string, caretOffset?: number) {
     editorRef.current?.insertAtCursor(text, caretOffset)
-    setPaletteOpen(false)
   }
 
   function insertCondition(dimension: string, value: string) {
     editorRef.current?.wrapSelectionWithCondition(dimension, value)
-    setPaletteOpen(false)
   }
 
   function insertBlock(action: BlockAction) {
     editorRef.current?.applyBlockAction(action)
-    setPaletteOpen(false)
   }
-
-  const hasItems = completionItems.variables.length > 0 || completionItems.snippets.length > 0
-  const hasConditions = Object.values(conditionsFile).some((values) => values.length > 0)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gray-800">
       <header className="flex items-center justify-between gap-2 border-b border-gray-700 bg-gray-800 px-4 py-2">
         <h1 className="truncate text-sm font-medium text-gray-200">{title}</h1>
         <div className="flex shrink-0 items-center gap-3">
-          <div className="relative">
-            <button
-              type="button"
-              className="rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
-              onClick={() => setPaletteOpen((open) => !open)}
-            >
-              Insert ▾
-            </button>
-            {paletteOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setPaletteOpen(false)} />
-                <div className="absolute right-0 z-20 mt-1 max-h-80 w-72 overflow-auto rounded border border-gray-600 bg-gray-800 p-2 text-left shadow-lg">
-                  {!hasItems && <p className="px-2 py-1 text-xs text-gray-400">No variables or snippets yet.</p>}
-                  {completionItems.variables.length > 0 && (
-                    <div className="mb-2">
-                      <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Variables</p>
-                      {completionItems.variables.map((v) => (
-                        <button
-                          key={v.key}
-                          type="button"
-                          className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
-                          title={v.description}
-                          onClick={() => insert(`{{${v.key}}}`)}
-                        >
-                          {`{{${v.key}}}`}
-                          {v.description && <span className="ml-2 text-xs text-gray-400">{v.description}</span>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {completionItems.snippets.length > 0 && (
-                    <div className="mb-2">
-                      <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Snippets</p>
-                      {completionItems.snippets.map((s) => (
-                        <button
-                          key={s.key}
-                          type="button"
-                          className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
-                          title={s.description}
-                          onClick={() => insert(`{{> ${s.key}}}`)}
-                        >
-                          {`{{> ${s.key}}}`}
-                          {s.description && <span className="ml-2 text-xs text-gray-400">{s.description}</span>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="mb-2">
-                    <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Blocks</p>
-                    {BLOCK_ACTIONS.map(({ action, label }) => (
-                      <button
-                        key={action}
-                        type="button"
-                        className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
-                        onClick={() => insertBlock(action)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <div>
-                    <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Conditions</p>
-                    {!hasConditions && <p className="px-2 py-1 text-xs text-gray-400">No condition values yet.</p>}
-                    {Object.entries(conditionsFile).flatMap(([dimension, values]) =>
-                      values.map((value) => (
-                        <button
-                          key={`${dimension}=${value}`}
-                          type="button"
-                          className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
-                          onClick={() => insertCondition(dimension, value)}
-                        >
-                          {`:::when ${dimension}=${value}`}
-                        </button>
-                      )),
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
           <button
             type="button"
             className="rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
@@ -248,6 +149,13 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
         onFieldChange={handleFrontmatterFieldChange}
         onKeyRename={handleFrontmatterKeyRename}
         onFieldDelete={handleFrontmatterFieldDelete}
+      />
+      <InsertToolbar
+        completionItems={completionItems}
+        conditionsFile={conditionsFile}
+        onInsertText={insert}
+        onInsertCondition={insertCondition}
+        onInsertBlock={insertBlock}
       />
       <div className="flex min-h-0 flex-1">
         <div className={`min-h-0 flex-1 ${previewVisible ? 'border-r border-gray-700' : ''}`}>
