@@ -203,16 +203,17 @@ decision (and arguably conflicts with the "content never touches browser
 storage as anything but plain text" rule) — flag it rather than absorb it
 here.
 **Accept when:**
-- [ ] Each toolbar action inserts correct, valid markdown at the cursor
+- [x] Each toolbar action inserts correct, valid markdown at the cursor
       (or wraps a selection correctly, e.g. blockquote)
-- [ ] Existing hand-typed markdown for the same constructs renders
+- [x] Existing hand-typed markdown for the same constructs renders
       identically to toolbar-inserted versions — no divergent syntax paths
-- [ ] The heading toolbar option is limited to a single document-title H1
+- [x] The heading toolbar option is limited to a single document-title H1
       (see Phase 9a) once Phase 9 is in place — it should NOT offer H2-H6
       as alternate "heading levels" for the title slot; H2-H6 remain
       available as ordinary body-structure markdown, not toolbar-promoted
       "heading" actions. Sequence or gate this accordingly if 8f ships
-      before 9a
+      before 9a (no heading action is offered at all yet — deferred until
+      9a lands, so nothing to gate prematurely)
 
 ### 8g. Link pills
 Same pattern as 8b/8c for standard markdown `[text](url)` links, with
