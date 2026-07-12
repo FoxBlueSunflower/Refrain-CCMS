@@ -18,6 +18,7 @@ export type BlockAction =
   | 'horizontal-rule'
   | 'table'
   | 'subheading'
+  | 'space'
 
 /** Prefixes every line touched by `[from, to)` (snapped outward to whole lines) with `makePrefix(lineIndex)`. */
 function applyLinePrefix(doc: string, from: number, to: number, makePrefix: (lineIndex: number) => string): BlockInsertion {
@@ -96,6 +97,11 @@ export function buildHorizontalRuleInsertion(doc: string, from: number, to: numb
   return { from, to, insertText, cursorPos: insertText.length }
 }
 
+/** Inserts a blank line at `from`, discarding any selected text. */
+export function buildSpaceInsertion(from: number, to: number): BlockInsertion {
+  return { from, to, insertText: '\n\n', cursorPos: 2 }
+}
+
 export function buildBlockInsertion(doc: string, from: number, to: number, action: BlockAction): BlockInsertion {
   switch (action) {
     case 'bullet-list':
@@ -114,5 +120,7 @@ export function buildBlockInsertion(doc: string, from: number, to: number, actio
       return buildTableInsertion(doc, from, to)
     case 'subheading':
       return buildSubheadingInsertion(doc, from)
+    case 'space':
+      return buildSpaceInsertion(from, to)
   }
 }

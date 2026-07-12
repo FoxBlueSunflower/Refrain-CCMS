@@ -157,40 +157,42 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
           <span className={`text-xs ${status.className}`}>{status.text}</span>
         </div>
       </header>
-      <FrontmatterFormPanel
-        entryKind={entryKind}
-        frontmatter={parsed.frontmatter}
-        warnings={frontmatterWarnings}
-        collapsed={frontmatterCollapsed}
-        onToggleCollapsed={() => setFrontmatterCollapsed((collapsed) => !collapsed)}
-        onFieldChange={handleFrontmatterFieldChange}
-        onKeyRename={handleFrontmatterKeyRename}
-        onFieldDelete={handleFrontmatterFieldDelete}
-      />
-      <InsertToolbar
-        completionItems={completionItems}
-        conditionsFile={conditionsFile}
-        documentPaths={documentPaths}
-        onInsertText={insert}
-        onInsertCondition={insertCondition}
-        onInsertBlock={insertBlock}
-        onInsertInline={insertInline}
-        onInsertLink={insertLink}
-      />
       <div className="flex min-h-0 flex-1">
-        <div className={`min-h-0 flex-1 ${previewVisible ? 'border-r border-gray-700' : ''}`}>
-          <CodeMirrorEditor
-            ref={editorRef}
-            path={path}
-            initialValue={parsed.body}
-            onChange={handleBodyChange}
-            onSave={onSave}
+        <div className={`flex min-h-0 flex-1 flex-col ${previewVisible ? 'border-r border-gray-700' : ''}`}>
+          <FrontmatterFormPanel
+            entryKind={entryKind}
+            frontmatter={parsed.frontmatter}
+            warnings={frontmatterWarnings}
+            collapsed={frontmatterCollapsed}
+            onToggleCollapsed={() => setFrontmatterCollapsed((collapsed) => !collapsed)}
+            onFieldChange={handleFrontmatterFieldChange}
+            onKeyRename={handleFrontmatterKeyRename}
+            onFieldDelete={handleFrontmatterFieldDelete}
+          />
+          <InsertToolbar
             completionItems={completionItems}
             conditionsFile={conditionsFile}
-            resolveContext={resolveContext}
-            currentRelPath={currentRelPath}
             documentPaths={documentPaths}
+            onInsertText={insert}
+            onInsertCondition={insertCondition}
+            onInsertBlock={insertBlock}
+            onInsertInline={insertInline}
+            onInsertLink={insertLink}
           />
+          <div className="min-h-0 flex-1">
+            <CodeMirrorEditor
+              ref={editorRef}
+              path={path}
+              initialValue={parsed.body}
+              onChange={handleBodyChange}
+              onSave={onSave}
+              completionItems={completionItems}
+              conditionsFile={conditionsFile}
+              resolveContext={resolveContext}
+              currentRelPath={currentRelPath}
+              documentPaths={documentPaths}
+            />
+          </div>
         </div>
         {previewVisible && (
           <div className="min-h-0 flex-1">
