@@ -10,7 +10,7 @@ export interface PageTemplateInput {
   searchEntries: Array<Pick<SearchEntry, 'title' | 'text'> & { href: string }>
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

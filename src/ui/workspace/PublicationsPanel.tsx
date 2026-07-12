@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Publication, PublicationNode } from '../../core/publications/types'
+import type { PublishProfile } from '../../core/workspace/types'
 import type { PublicationSummary } from '../../fs'
 import { EmptyState } from '../shared/EmptyState'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DocumentTitleDialog } from './NewDocumentDialog'
+import { type PublicationPublishResultSummary, warningLabel } from './PublishPanel'
 
 interface PublicationsPanelProps {
   publications: PublicationSummary[]
@@ -11,10 +13,14 @@ interface PublicationsPanelProps {
   selectedPublication: Publication | null
   creating: boolean
   deletingPaths: ReadonlySet<string>
+  profiles: Record<string, PublishProfile>
+  publishing: boolean
+  publishResult: PublicationPublishResultSummary | null
   onSelect: (path: string) => void
   /** Returns whether creation succeeded, so the dialog only closes (and the typed title is only discarded) on success — a failure keeps it open with the title intact. */
   onCreate: (title: string) => Promise<boolean>
   onDelete: (path: string) => void
+  onPublish: (path: string, profileName: string) => void
   onClose: () => void
 }
 
@@ -48,13 +54,26 @@ export function PublicationsPanel({
   selectedPublication,
   creating,
   deletingPaths,
+  profiles,
+  publishing,
+  publishResult,
   onSelect,
   onCreate,
   onDelete,
+  onPublish,
   onClose,
 }: PublicationsPanelProps) {
   const [newDialogOpen, setNewDialogOpen] = useState(false)
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(null)
+  const profileNames = Object.keys(profiles)
+  const [selectedProfile, setSelectedProfile] = useState(profileNames[0] ?? '')
+
+  // profiles can still be loading (workspaceConfig hydrates asynchronously) when this
+  // panel first mounts — resync once real profile names arrive instead of staying
+  // stuck on the empty default from that first render.
+  useEffect(() => {
+    if (!selectedProfile && profileNames.length > 0) setSelectedProfile(profileNames[0])
+  }, [profileNames, selectedProfile])
 
   return (
     <>
@@ -140,6 +159,62 @@ export function PublicationsPanel({
                 <EmptyState title="Pick a publication on the left to preview its contents" />
               )}
             </div>
+
+            {selectedPublication && selectedPath && (
+              <div className="border-t border-gray-700 p-4">
+                {profileNames.length === 0 ? (
+                  <EmptyState
+                    title="No publish profiles yet"
+                    description="Add one to workspace.json's publishProfiles to publish."
+                  />
+                ) : (
+                  <>
+                    <div className="mb-3 flex flex-col gap-1">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Publish profile</p>
+                      <div className="flex flex-wrap gap-3">
+                        {profileNames.map((name) => (
+                          <label key={name} className="flex items-center gap-2 text-sm text-gray-200">
+                            <input
+                              type="radio"
+                              name="publication-publish-profile"
+                              value={name}
+                              checked={selectedProfile === name}
+                              onChange={() => setSelectedProfile(name)}
+                            />
+                            {name}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={publishing || !selectedProfile}
+                      onClick={() => onPublish(selectedPath, selectedProfile)}
+                    >
+                      {publishing ? 'Publishing…' : 'Publish'}
+                    </button>
+                  </>
+                )}
+
+                {publishResult && publishResult.path === selectedPath && (
+                  <div className="mt-3 border-t border-gray-700 pt-3">
+                    <p className="mb-2 text-sm text-gray-200">
+                      Published "{publishResult.profileName}" — written to publish/{publishResult.outputPath}.
+                    </p>
+                    {publishResult.warnings.length === 0 ? (
+                      <p className="text-xs text-gray-400">No warnings.</p>
+                    ) : (
+                      <ul className="max-h-32 space-y-1 overflow-auto text-xs text-amber-300">
+                        {publishResult.warnings.map((warning, i) => (
+                          <li key={i}>{warningLabel(warning)}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
