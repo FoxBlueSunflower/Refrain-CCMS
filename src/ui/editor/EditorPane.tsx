@@ -37,6 +37,10 @@ interface EditorPaneProps {
   onChange: (text: string) => void
   onSave: () => void
   onNavigate: (relPath: string) => void
+  onOpenPublish: () => void
+  onOpenProfiles: () => void
+  onOpenVariables: () => void
+  onOpenConditions: () => void
 }
 
 function statusLabel(dirty: boolean, saveStatus: SaveStatus): { text: string; className: string } {
@@ -63,6 +67,10 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
     onChange,
     onSave,
     onNavigate,
+    onOpenPublish,
+    onOpenProfiles,
+    onOpenVariables,
+    onOpenConditions,
   },
   forwardedRef,
 ) {
@@ -154,6 +162,20 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
           >
             {previewVisible ? 'Hide preview' : 'Show preview'}
           </button>
+          <button
+            type="button"
+            className="rounded border border-violet-600 px-2 py-0.5 text-xs text-violet-300 hover:bg-violet-900/40"
+            onClick={onOpenPublish}
+          >
+            Publish
+          </button>
+          <button
+            type="button"
+            className="rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
+            onClick={onOpenProfiles}
+          >
+            Manage profiles
+          </button>
           <span className={`text-xs ${status.className}`}>{status.text}</span>
         </div>
       </header>
@@ -178,6 +200,8 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
             onInsertBlock={insertBlock}
             onInsertInline={insertInline}
             onInsertLink={insertLink}
+            onOpenVariables={onOpenVariables}
+            onOpenConditions={onOpenConditions}
           />
           <div className="min-h-0 flex-1">
             <CodeMirrorEditor

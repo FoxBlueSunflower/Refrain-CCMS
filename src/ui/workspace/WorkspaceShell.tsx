@@ -866,12 +866,15 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     onHelp: () => setShortcutsHelpOpen(true),
   })
 
+  const documentEditorOpen = activePane === 'document' && !!openDoc
+
   return (
     <div className="flex h-screen overflow-hidden">
       <OnboardingController ref={onboardingRef} showTourOnMount={justCreatedSample} />
       <Sidebar
         handle={handle}
         refreshToken={refreshToken}
+        documentEditorOpen={documentEditorOpen}
         onOpenWhereUsed={() => setWhereUsedOpen(true)}
         onOpenPublish={openPublishPanel}
         onOpenHistory={openHistoryPanel}
@@ -973,6 +976,10 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
               onChange={handleBufferChange}
               onSave={handleExplicitSave}
               onNavigate={(relPath) => void handleNavigateFromPreview(relPath)}
+              onOpenPublish={openPublishPanel}
+              onOpenProfiles={() => void openProfilesEditor()}
+              onOpenVariables={() => void openVariablesEditor()}
+              onOpenConditions={() => void openConditionsEditor()}
             />
           ) : (
             <main className="flex flex-1 flex-col items-center justify-center bg-gray-900">
