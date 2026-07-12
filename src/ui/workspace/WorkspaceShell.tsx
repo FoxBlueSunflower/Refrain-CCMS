@@ -4,7 +4,8 @@ import { buildSite } from '../../core/builder/site'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
 import { buildWorkspaceIndex } from '../../core/indexer/build'
 import type { WorkspaceIndex } from '../../core/indexer/types'
-import type { Publication } from '../../core/publications/types'
+import { countNodes } from '../../core/publications/tree'
+import type { Publication, PublicationNode } from '../../core/publications/types'
 import type { SnippetSource } from '../../core/resolver/types'
 import { renderChangelog } from '../../core/snapshots/changelog'
 import { diffSnapshotFiles } from '../../core/snapshots/diff'
@@ -50,6 +51,7 @@ import {
   restoreSnapshot,
   snippetStemExists,
   unarchiveTemplate,
+  writePublication,
   writeSiblingOrder,
   writeSnapshot,
   writeTextFile,
@@ -592,6 +594,25 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
       }
     },
     [handle, loadPublications, pushToast, selectedPublicationPath, deletingPublicationPaths],
+  )
+
+  const handleEditPublication = useCallback(
+    (mutate: (nodes: PublicationNode[]) => PublicationNode[]) => {
+      if (!selectedPublication || !selectedPublicationPath) return
+      const path = selectedPublicationPath
+      const previous = selectedPublication
+      const next: Publication = { ...previous, nodes: mutate(previous.nodes) }
+      setSelectedPublication(next)
+      setPublications((prev) =>
+        prev.map((p) => (p.path === path ? { ...p, nodeCount: countNodes(next.nodes) } : p)),
+      )
+      writePublication(handle, path, next).catch((err) => {
+        setSelectedPublication(previous)
+        setPublications((prev) => prev.map((p) => (p.path === path ? { ...p, nodeCount: countNodes(previous.nodes) } : p)))
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      })
+    },
+    [handle, selectedPublication, selectedPublicationPath, pushToast],
   )
 
   const handleSaveNow = useCallback(async () => {
@@ -1153,9 +1174,11 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           profiles={workspaceConfig?.publishProfiles ?? {}}
           publishing={publishingPublication}
           publishResult={publicationPublishResult}
+          documentPaths={documentPaths}
           onSelect={(path) => void handleSelectPublication(path)}
           onCreate={handleCreatePublication}
           onDelete={(path) => void handleDeletePublication(path)}
+          onEditPublication={handleEditPublication}
           onPublish={(path, profileName) => void handlePublishPublication(path, profileName)}
           onClose={() => setPublicationsOpen(false)}
         />
