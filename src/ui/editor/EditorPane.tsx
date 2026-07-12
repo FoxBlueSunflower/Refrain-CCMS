@@ -4,6 +4,7 @@ import type { FrontmatterEntryKind } from '../../core/frontmatter/schema'
 import { deleteFrontmatterField, setFrontmatterField } from '../../core/frontmatter/update'
 import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
+import type { BlockAction } from './blockEditing'
 import { CodeMirrorEditor, type CodeMirrorEditorHandle } from './CodeMirrorEditor'
 import type { TokenCompletionItems } from './completions'
 import { FrontmatterFormPanel } from './FrontmatterFormPanel'
@@ -34,6 +35,19 @@ interface EditorPaneProps {
   onSave: () => void
   onNavigate: (relPath: string) => void
 }
+
+// Phase 8f: block-insertion toolbar actions, listed in the Insert dropdown's
+// "Blocks" section. Deliberately excludes headings — Refrain's title/H1
+// normalization rule lands in Phase 9a, and a heading toolbar action needs
+// to be gated to a single document-title H1 once that rule exists (see
+// BUILD_PLAN.md 8f), so it's left out here rather than added ungated.
+const BLOCK_ACTIONS: { action: BlockAction; label: string }[] = [
+  { action: 'bullet-list', label: 'Bulleted list' },
+  { action: 'numbered-list', label: 'Numbered list' },
+  { action: 'blockquote', label: 'Blockquote' },
+  { action: 'code-block', label: 'Code block' },
+  { action: 'horizontal-rule', label: 'Horizontal rule' },
+]
 
 function statusLabel(dirty: boolean, saveStatus: SaveStatus): { text: string; className: string } {
   if (saveStatus === 'saving') return { text: 'Saving…', className: 'text-gray-400' }
@@ -122,6 +136,11 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
     setPaletteOpen(false)
   }
 
+  function insertBlock(action: BlockAction) {
+    editorRef.current?.applyBlockAction(action)
+    setPaletteOpen(false)
+  }
+
   const hasItems = completionItems.variables.length > 0 || completionItems.snippets.length > 0
   const hasConditions = Object.values(conditionsFile).some((values) => values.length > 0)
 
@@ -177,6 +196,19 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
                       ))}
                     </div>
                   )}
+                  <div className="mb-2">
+                    <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Blocks</p>
+                    {BLOCK_ACTIONS.map(({ action, label }) => (
+                      <button
+                        key={action}
+                        type="button"
+                        className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                        onClick={() => insertBlock(action)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <div>
                     <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Conditions</p>
                     {!hasConditions && <p className="px-2 py-1 text-xs text-gray-400">No condition values yet.</p>}

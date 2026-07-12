@@ -8,6 +8,7 @@ import { tags } from '@lezer/highlight'
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
 import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
+import { buildBlockInsertion, type BlockAction } from './blockEditing'
 import { createConditionCompletionSource, createTokenCompletionSource, type TokenCompletionItems } from './completions'
 import { buildConditionInsertion } from './conditionEditing'
 import { createConditionHighlightPlugin } from './conditionHighlightPlugin'
@@ -54,6 +55,12 @@ export interface CodeMirrorEditorHandle {
    * nothing is selected — inserts a blank scaffold, same as before.
    */
   wrapSelectionWithCondition: (dimension: string, value: string) => void
+  /**
+   * Applies a block-level markdown toolbar action (Phase 8f) — bulleted
+   * list, numbered list, blockquote, code block, or horizontal rule — to
+   * the current selection.
+   */
+  applyBlockAction: (action: BlockAction) => void
 }
 
 export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEditorProps>(function CodeMirrorEditor(
@@ -117,6 +124,17 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
       if (!view) return
       const { from, to } = view.state.selection.main
       const result = buildConditionInsertion(view.state.doc.toString(), from, to, dimension, value)
+      view.dispatch({
+        changes: { from: result.from, to: result.to, insert: result.insertText },
+        selection: { anchor: result.from + result.cursorPos },
+      })
+      view.focus()
+    },
+    applyBlockAction: (action: BlockAction) => {
+      const view = viewRef.current
+      if (!view) return
+      const { from, to } = view.state.selection.main
+      const result = buildBlockInsertion(view.state.doc.toString(), from, to, action)
       view.dispatch({
         changes: { from: result.from, to: result.to, insert: result.insertText },
         selection: { anchor: result.from + result.cursorPos },
