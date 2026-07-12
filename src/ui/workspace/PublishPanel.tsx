@@ -11,6 +11,14 @@ export interface PublishResultSummary {
   changes: SnapshotDiff
 }
 
+/** Result of publishing a single publication (Phase 9c) — no snapshot/changelog, just the one output file. */
+export interface PublicationPublishResultSummary {
+  path: string
+  profileName: string
+  outputPath: string
+  warnings: BuildWarning[]
+}
+
 interface PublishPanelProps {
   profiles: Record<string, PublishProfile>
   publishing: boolean
@@ -19,7 +27,7 @@ interface PublishPanelProps {
   onClose: () => void
 }
 
-function warningLabel(warning: BuildWarning): string {
+export function warningLabel(warning: BuildWarning): string {
   const location = warning.line ? `${warning.file}:${warning.line}` : warning.file
   return `${location} — ${warning.message}`
 }

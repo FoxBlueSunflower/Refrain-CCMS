@@ -3,24 +3,13 @@ import { parseFrontmatter } from '../frontmatter/parse'
 import { resolveDocument } from '../resolver/resolve'
 import { DOCS_DIR } from '../workspace/constants'
 import { relativePath, resolveRelativeDocLink } from '../workspace/paths'
-import { IDENTIFIER_CHARS } from '../workspace/identifier-keys'
-import type { DocTreeNode, VariablesFile } from '../workspace/types'
+import type { DocTreeNode } from '../workspace/types'
 import { filterConditions } from './conditions'
 import { buildNav, docPathToOutputPath } from './nav'
 import { buildSearchIndex } from './search-index'
 import { renderPage } from './html-template'
+import { substituteTitleVariables } from './titleSubstitution'
 import type { BuildWarning, BuiltFile, PublishInput, PublishResult } from './types'
-
-const TITLE_TOKEN_PATTERN = new RegExp(`\\{\\{\\s*([${IDENTIFIER_CHARS}]+)\\s*\\}\\}`, 'g')
-
-/**
- * Best-effort {{key}} substitution for <title>/nav text: variables only, no
- * snippets, unresolved keys are left literal, and (unlike resolveDocument)
- * this never emits a warning — it's cosmetic, not content.
- */
-function substituteTitleVariables(title: string, variables: VariablesFile): string {
-  return title.replace(TITLE_TOKEN_PATTERN, (match, key: string) => variables[key]?.value ?? match)
-}
 
 function collectFileNodes(nodes: DocTreeNode[], out: Map<string, DocTreeNode>): void {
   for (const node of nodes) {
@@ -35,7 +24,7 @@ function collectFileNodes(nodes: DocTreeNode[], out: Map<string, DocTreeNode>): 
  * `.md` links to the corresponding page-relative `.html` href, reusing the
  * same link-resolution logic the live preview already uses.
  */
-function createLinkRewritingRenderer(docRelPath: string, outputPath: string): Renderer {
+export function createLinkRewritingRenderer(docRelPath: string, outputPath: string): Renderer {
   const renderer = new Renderer()
   // A regular function, not an arrow: marked assigns `this` to whatever live
   // renderer instance it's parsing with, and Renderer.prototype.link reads

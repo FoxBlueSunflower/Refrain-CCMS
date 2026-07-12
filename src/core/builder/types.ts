@@ -11,6 +11,8 @@ export type BuildWarningType =
   | 'circular-snippet'
   | 'snippet-nesting-too-deep'
   | 'frontmatter'
+  | 'heading-level-exceeds-h6'
+  | 'missing-publication-doc'
 
 /** A build-time problem worth surfacing to the writer. `line` is 1-indexed and only set for line-locatable warnings. */
 export interface BuildWarning {

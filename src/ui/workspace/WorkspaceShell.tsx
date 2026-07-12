@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { buildPublication } from '../../core/builder/publicationBuild'
 import { buildSite } from '../../core/builder/site'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
 import { buildWorkspaceIndex } from '../../core/indexer/build'
@@ -9,7 +10,7 @@ import { renderChangelog } from '../../core/snapshots/changelog'
 import { diffSnapshotFiles } from '../../core/snapshots/diff'
 import { diffConditions, diffVariables } from '../../core/snapshots/discrepancy'
 import type { ConditionDiscrepancy, PublishLogEntry, VariableDiscrepancy } from '../../core/snapshots/types'
-import { APP_DIR, PUBLISH_DIR } from '../../core/workspace/constants'
+import { APP_DIR, PUBLICATIONS_DIR, PUBLISH_DIR } from '../../core/workspace/constants'
 import { slugify, withMdExtension } from '../../core/workspace/paths'
 import { defaultFrontmatterFor, seedTemplateContent, templateBaseDir } from '../../core/workspace/templates'
 import type { ConditionsFile, VariablesFile, WorkspaceConfig } from '../../core/workspace/types'
@@ -69,7 +70,7 @@ import { HistoryPanel } from './HistoryPanel'
 import { DocumentTitleDialog } from './NewDocumentDialog'
 import { ProfilesEditor, type ProfilesEditorHandle } from './ProfilesEditor'
 import { PublicationsPanel } from './PublicationsPanel'
-import { PublishPanel, type PublishResultSummary } from './PublishPanel'
+import { PublishPanel, type PublicationPublishResultSummary, type PublishResultSummary } from './PublishPanel'
 import { Sidebar, type SiblingEntry } from './Sidebar'
 import { TemplatesPanel } from './TemplatesPanel'
 import { VariablesEditor, type VariablesEditorHandle } from './VariablesEditor'
@@ -177,6 +178,8 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   const [creatingPublication, setCreatingPublication] = useState(false)
   const [deletingPublicationPaths, setDeletingPublicationPaths] = useState<ReadonlySet<string>>(new Set())
   const publicationSelectionRef = useRef(0)
+  const [publishingPublication, setPublishingPublication] = useState(false)
+  const [publicationPublishResult, setPublicationPublishResult] = useState<PublicationPublishResultSummary | null>(null)
 
   const [activePane, setActivePane] = useState<Pane>('document')
   const [openedPanes, setOpenedPanes] = useState<Set<Exclude<Pane, 'document'>>>(new Set())
@@ -492,6 +495,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   const handleSelectPublication = useCallback(
     async (path: string) => {
       setSelectedPublicationPath(path)
+      setPublicationPublishResult(null)
       const token = ++publicationSelectionRef.current
       const result = await readPublication(handle, path)
       if (publicationSelectionRef.current !== token) return // a newer selection is already in flight
@@ -504,6 +508,43 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
       }
     },
     [handle, pushToast],
+  )
+
+  const handlePublishPublication = useCallback(
+    async (path: string, profileName: string) => {
+      if (!workspaceConfig) return
+      const profile = workspaceConfig.publishProfiles[profileName]
+      if (!profile) return
+
+      setPublishingPublication(true)
+      try {
+        const [pubResult, docs] = await Promise.all([readPublication(handle, path), readAllDocuments(handle)])
+        if (!pubResult.ok) {
+          pushToast({ kind: 'error', message: pubResult.errors.join('; ') })
+          return
+        }
+        const slug = path.slice(0, -'.json'.length) // PublicationSummary.path is always "<slug>.json"
+        const result = buildPublication({
+          publication: pubResult.value,
+          sourcePath: `${PUBLICATIONS_DIR}/${path}`,
+          slug,
+          documents: docs,
+          snippets,
+          variables,
+          conditionsFile,
+          profile,
+          siteTitle: workspaceConfig.site.title,
+        })
+        const [file] = result.files
+        await writeTextFile(handle, `${PUBLISH_DIR}/${file.path}`, file.contents)
+        setPublicationPublishResult({ path, profileName, outputPath: file.path, warnings: result.warnings })
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      } finally {
+        setPublishingPublication(false)
+      }
+    },
+    [handle, workspaceConfig, conditionsFile, snippets, variables, pushToast],
   )
 
   const handleCreatePublication = useCallback(
@@ -1109,9 +1150,13 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           selectedPublication={selectedPublication}
           creating={creatingPublication}
           deletingPaths={deletingPublicationPaths}
+          profiles={workspaceConfig?.publishProfiles ?? {}}
+          publishing={publishingPublication}
+          publishResult={publicationPublishResult}
           onSelect={(path) => void handleSelectPublication(path)}
           onCreate={handleCreatePublication}
           onDelete={(path) => void handleDeletePublication(path)}
+          onPublish={(path, profileName) => void handlePublishPublication(path, profileName)}
           onClose={() => setPublicationsOpen(false)}
         />
       )}
