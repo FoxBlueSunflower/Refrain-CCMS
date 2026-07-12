@@ -12,6 +12,8 @@ import { buildBlockInsertion, type BlockAction } from './blockEditing'
 import { createConditionCompletionSource, createTokenCompletionSource, type TokenCompletionItems } from './completions'
 import { buildConditionInsertion } from './conditionEditing'
 import { createConditionHighlightPlugin } from './conditionHighlightPlugin'
+import { buildInlineInsertion, type InlineAction } from './inlineEditing'
+import { buildLinkInsertion } from './linkEditing'
 import { createLinkPillPlugin, createPillPlugin, refreshPillsEffect } from './pillPlugin'
 
 // Overrides CodeMirror's default light-mode link/URL color (a dark indigo,
@@ -57,10 +59,20 @@ export interface CodeMirrorEditorHandle {
   wrapSelectionWithCondition: (dimension: string, value: string) => void
   /**
    * Applies a block-level markdown toolbar action (Phase 8f) — bulleted
-   * list, numbered list, blockquote, code block, or horizontal rule — to
-   * the current selection.
+   * list, numbered list, checklist, blockquote, code block, horizontal
+   * rule, table, or subheading — to the current selection.
    */
   applyBlockAction: (action: BlockAction) => void
+  /**
+   * Applies an inline text-formatting toolbar action (bold, italic,
+   * underline) to the current selection.
+   */
+  applyInlineAction: (action: InlineAction) => void
+  /**
+   * Inserts a markdown link (`[text](target)`) at the current selection —
+   * `target` may be an external URL or a doc-relative internal path.
+   */
+  insertLink: (target: string) => void
 }
 
 export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEditorProps>(function CodeMirrorEditor(
@@ -135,6 +147,28 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
       if (!view) return
       const { from, to } = view.state.selection.main
       const result = buildBlockInsertion(view.state.doc.toString(), from, to, action)
+      view.dispatch({
+        changes: { from: result.from, to: result.to, insert: result.insertText },
+        selection: { anchor: result.from + result.cursorPos },
+      })
+      view.focus()
+    },
+    applyInlineAction: (action: InlineAction) => {
+      const view = viewRef.current
+      if (!view) return
+      const { from, to } = view.state.selection.main
+      const result = buildInlineInsertion(view.state.doc.toString(), from, to, action)
+      view.dispatch({
+        changes: { from: result.from, to: result.to, insert: result.insertText },
+        selection: { anchor: result.from + result.cursorPos },
+      })
+      view.focus()
+    },
+    insertLink: (target: string) => {
+      const view = viewRef.current
+      if (!view) return
+      const { from, to } = view.state.selection.main
+      const result = buildLinkInsertion(view.state.doc.toString(), from, to, target)
       view.dispatch({
         changes: { from: result.from, to: result.to, insert: result.insertText },
         selection: { anchor: result.from + result.cursorPos },

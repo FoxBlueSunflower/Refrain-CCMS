@@ -8,6 +8,7 @@ import type { BlockAction } from './blockEditing'
 import { CodeMirrorEditor, type CodeMirrorEditorHandle } from './CodeMirrorEditor'
 import type { TokenCompletionItems } from './completions'
 import { FrontmatterFormPanel } from './FrontmatterFormPanel'
+import type { InlineAction } from './inlineEditing'
 import { InsertToolbar } from './InsertToolbar'
 import { PreviewPane } from './PreviewPane'
 
@@ -125,6 +126,14 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
     editorRef.current?.applyBlockAction(action)
   }
 
+  function insertInline(action: InlineAction) {
+    editorRef.current?.applyInlineAction(action)
+  }
+
+  function insertLink(target: string) {
+    editorRef.current?.insertLink(target)
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gray-800">
       <header className="flex items-center justify-between gap-2 border-b border-gray-700 bg-gray-800 px-4 py-2">
@@ -153,9 +162,12 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
       <InsertToolbar
         completionItems={completionItems}
         conditionsFile={conditionsFile}
+        documentPaths={documentPaths}
         onInsertText={insert}
         onInsertCondition={insertCondition}
         onInsertBlock={insertBlock}
+        onInsertInline={insertInline}
+        onInsertLink={insertLink}
       />
       <div className="flex min-h-0 flex-1">
         <div className={`min-h-0 flex-1 ${previewVisible ? 'border-r border-gray-700' : ''}`}>

@@ -60,3 +60,19 @@ export function buildFenceWrap(doc: string, from: number, to: number, opening: s
   const insertText = `${leading}${opening}\n${selected}${trailingBody}${closing}${trailing}`
   return { from: snappedFrom, to: snappedTo, insertText, cursorPos: insertText.length }
 }
+
+/**
+ * Wraps `[from, to)` of `doc` inline between bare `prefix`/`suffix` markers
+ * (used for bold/italic/underline). Unlike `buildFenceWrap`, this never
+ * snaps to line boundaries — inline markers can sit mid-line.
+ *
+ * - Empty selection: inserts the bare markers with the cursor left between
+ *   them, ready to type.
+ * - Non-empty selection: wraps it in place, cursor after the closing marker.
+ */
+export function buildInlineWrap(doc: string, from: number, to: number, prefix: string, suffix: string): TextEdit {
+  const selected = doc.slice(from, to)
+  const insertText = `${prefix}${selected}${suffix}`
+  const cursorPos = selected.length > 0 ? insertText.length : prefix.length
+  return { from, to, insertText, cursorPos }
+}

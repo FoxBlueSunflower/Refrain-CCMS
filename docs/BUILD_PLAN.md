@@ -211,9 +211,10 @@ here.
       (see Phase 9a) once Phase 9 is in place — it should NOT offer H2-H6
       as alternate "heading levels" for the title slot; H2-H6 remain
       available as ordinary body-structure markdown, not toolbar-promoted
-      "heading" actions. Sequence or gate this accordingly if 8f ships
-      before 9a (no heading action is offered at all yet — deferred until
-      9a lands, so nothing to gate prematurely)
+      "heading" actions. Update: a single "Subheading" action (always H2,
+      no level picker) shipped ahead of 9a per explicit user request — H1
+      stays off the toolbar, still reserved for the future auto-managed
+      title from 9a
 
 ### 8g. Link pills
 Same pattern as 8b/8c for standard markdown `[text](url)` links, with
@@ -229,6 +230,25 @@ verifiable locally, unlike external URLs.
       a rendering layer only
 - [x] A link whose text or URL contains a `{{variable}}`/`{{> snippet}}`
       token is left unpilled so the token inside still pills correctly
+
+### 8h. Text formatting, checklist, table, link insertion
+Raised directly: bold/italic/underline inline formatting and a "Link"
+action (external URL or pick-a-document internal link) grouped under a
+new "Txt" toolbar dropdown alongside Subheading; a "Checklist" action
+added to the existing "Lists" dropdown; a "Table" action (fixed 2-column
+GFM template) added to the block-level dropdown, relabeled "Blocks".
+Underline has no native CommonMark syntax, so it inserts raw `<u>...</u>`
+— verified safe since `marked` (used by both the live preview and the
+static-site publisher) passes inline HTML through untouched.
+**Accept when:**
+- [x] Bold/italic/underline wrap the current selection, or leave the
+      cursor between bare markers ready to type when nothing is selected
+- [x] Link inserts `[text](target)`, using the selection as link text
+      when present; the internal-link list is populated from the same
+      known-document-paths set link pills already use for broken-link
+      checks
+- [x] Checklist and Table insert valid GFM (`- [ ] `, and a padded pipe
+      table that doesn't merge into adjacent paragraph text)
 
 ---
 
