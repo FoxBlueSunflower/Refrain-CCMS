@@ -240,12 +240,15 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
             verticalAlign: 'bottom',
           },
           '.rf-pill-broken': { backgroundColor: '#450a0a', color: '#fca5a5', border: '1px dashed #b91c1c' },
+          '.rf-pill-condition': { backgroundColor: '#1f2937', color: '#e5e7eb', border: '1px solid #4b5563' },
           // Phase 8e: ":::when dimension=value ... :::" block highlight. Fence
-          // lines are muted/small (so a document doesn't turn into a wall of
-          // raw ::: markers) with a colored left border; body lines get a
-          // full-width tinted background. Color is picked per dimension=value
-          // tag from a small rotating palette (see conditionHighlightPlugin.ts)
-          // so adjacent, differently-tagged blocks stay visually distinct.
+          // lines collapse to a small "dimension=value" pill (raw ":::"
+          // syntax hidden) until the cursor/selection is inside the block;
+          // the colored left border and tinted background carry across the
+          // fence lines uninterrupted either way. Color is picked per
+          // dimension=value tag from a small rotating palette (see
+          // conditionHighlightPlugin.ts) so adjacent, differently-tagged
+          // blocks stay visually distinct.
           '.rf-condition-fence': {
             fontSize: '0.85em',
             color: '#9ca3af',
