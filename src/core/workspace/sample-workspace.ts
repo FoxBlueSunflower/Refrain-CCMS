@@ -2,6 +2,7 @@ import {
   CONDITIONS_FILE,
   CURRENT_FORMAT_VERSION,
   FOLDER_META_FILE,
+  PUBLICATIONS_DIR,
   TEMPLATES_DIR,
   VARIABLES_FILE,
   WORKSPACE_FILE,
@@ -40,6 +41,21 @@ const conditionsJson = json({
 const guidesFolderJson = json({
   title: 'Guides',
   order: 3,
+})
+
+const userGuidePublicationJson = json({
+  title: 'User Guide',
+  nodes: [
+    { type: 'doc', ref: 'docs/index.md' },
+    {
+      type: 'heading',
+      title: 'Getting Started',
+      children: [
+        { type: 'doc', ref: 'docs/getting-started.md' },
+        { type: 'doc', ref: 'docs/guides/installation.md' },
+      ],
+    },
+  ],
 })
 
 const indexMd = `---
@@ -153,5 +169,6 @@ export function buildSampleWorkspaceFiles(): SampleFile[] {
     { path: 'snippets/support-contact.md', contents: supportContactMd },
     { path: `${TEMPLATES_DIR}/docs/release-notes.md`, contents: releaseNotesTemplateMd },
     { path: `${TEMPLATES_DIR}/snippets/callout.md`, contents: calloutTemplateMd },
+    { path: `${PUBLICATIONS_DIR}/user-guide.json`, contents: userGuidePublicationJson },
   ]
 }

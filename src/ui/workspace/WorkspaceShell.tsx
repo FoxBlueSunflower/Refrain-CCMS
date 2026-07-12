@@ -3,6 +3,7 @@ import { buildSite } from '../../core/builder/site'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
 import { buildWorkspaceIndex } from '../../core/indexer/build'
 import type { WorkspaceIndex } from '../../core/indexer/types'
+import type { Publication } from '../../core/publications/types'
 import type { SnippetSource } from '../../core/resolver/types'
 import { renderChangelog } from '../../core/snapshots/changelog'
 import { diffSnapshotFiles } from '../../core/snapshots/diff'
@@ -17,9 +18,11 @@ import {
   archiveTemplate,
   clearDirectory,
   createFolder,
+  createPublication,
   createTemplate,
   deleteEntry,
   deleteFolder,
+  deletePublication,
   findUniqueFilePath,
   findUniqueFolderPath,
   listSnapshots,
@@ -27,12 +30,14 @@ import {
   moveFolder,
   pathExists,
   readAllDocuments,
+  readAllPublications,
   readAllSnippets,
   readAllTemplates,
   readAvailableTemplates,
   readConditionsFile,
   readCurrentSnapshotFiles,
   readDocTree,
+  readPublication,
   readPublishLog,
   readSnapshotFiles,
   readTemplateBody,
@@ -47,6 +52,7 @@ import {
   writeSiblingOrder,
   writeSnapshot,
   writeTextFile,
+  type PublicationSummary,
   type SnapshotSummary,
   type TemplateSummary,
 } from '../../fs'
@@ -62,6 +68,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { HistoryPanel } from './HistoryPanel'
 import { DocumentTitleDialog } from './NewDocumentDialog'
 import { ProfilesEditor, type ProfilesEditorHandle } from './ProfilesEditor'
+import { PublicationsPanel } from './PublicationsPanel'
 import { PublishPanel, type PublishResultSummary } from './PublishPanel'
 import { Sidebar, type SiblingEntry } from './Sidebar'
 import { TemplatesPanel } from './TemplatesPanel'
@@ -162,6 +169,14 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   const [templatesOpen, setTemplatesOpen] = useState(false)
   const [docTemplates, setDocTemplates] = useState<TemplateSummary[]>([])
   const [snippetTemplates, setSnippetTemplates] = useState<TemplateSummary[]>([])
+
+  const [publicationsOpen, setPublicationsOpen] = useState(false)
+  const [publications, setPublications] = useState<PublicationSummary[]>([])
+  const [selectedPublicationPath, setSelectedPublicationPath] = useState<string | null>(null)
+  const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null)
+  const [creatingPublication, setCreatingPublication] = useState(false)
+  const [deletingPublicationPaths, setDeletingPublicationPaths] = useState<ReadonlySet<string>>(new Set())
+  const publicationSelectionRef = useRef(0)
 
   const [activePane, setActivePane] = useState<Pane>('document')
   const [openedPanes, setOpenedPanes] = useState<Set<Exclude<Pane, 'document'>>>(new Set())
@@ -461,6 +476,83 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     [handle, loadTemplates, pushToast],
   )
 
+  const loadPublications = useCallback(async () => {
+    try {
+      setPublications(await readAllPublications(handle))
+    } catch (err) {
+      pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+    }
+  }, [handle, pushToast])
+
+  const openPublicationsPanel = useCallback(() => {
+    setPublicationsOpen(true)
+    void loadPublications()
+  }, [loadPublications])
+
+  const handleSelectPublication = useCallback(
+    async (path: string) => {
+      setSelectedPublicationPath(path)
+      const token = ++publicationSelectionRef.current
+      const result = await readPublication(handle, path)
+      if (publicationSelectionRef.current !== token) return // a newer selection is already in flight
+      if (result.ok) {
+        setSelectedPublication(result.value)
+      } else {
+        setSelectedPublicationPath(null)
+        setSelectedPublication(null)
+        pushToast({ kind: 'error', message: `Couldn't read that publication: ${result.errors.join(', ')}` })
+      }
+    },
+    [handle, pushToast],
+  )
+
+  const handleCreatePublication = useCallback(
+    async (title: string): Promise<boolean> => {
+      if (creatingPublication) return false
+      setCreatingPublication(true)
+      try {
+        const { path, publication } = await createPublication(handle, title)
+        setPublications((prev) =>
+          [...prev, { path, title: publication.title, nodeCount: 0 }].sort((a, b) => a.title.localeCompare(b.title)),
+        )
+        publicationSelectionRef.current += 1 // invalidate any read still in flight for the previous selection
+        setSelectedPublicationPath(path)
+        setSelectedPublication(publication)
+        return true
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+        return false
+      } finally {
+        setCreatingPublication(false)
+      }
+    },
+    [handle, creatingPublication, pushToast],
+  )
+
+  const handleDeletePublication = useCallback(
+    async (path: string) => {
+      if (deletingPublicationPaths.has(path)) return
+      setDeletingPublicationPaths((prev) => new Set(prev).add(path))
+      try {
+        await deletePublication(handle, path)
+        if (selectedPublicationPath === path) {
+          setSelectedPublicationPath(null)
+          setSelectedPublication(null)
+        }
+        await loadPublications()
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      } finally {
+        setDeletingPublicationPaths((prev) => {
+          const next = new Set(prev)
+          next.delete(path)
+          return next
+        })
+      }
+    },
+    [handle, loadPublications, pushToast, selectedPublicationPath, deletingPublicationPaths],
+  )
+
   const handleSaveNow = useCallback(async () => {
     setSnapshotting(true)
     try {
@@ -749,11 +841,19 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
       setRestoreDiscrepancies(null)
     } else if (templatesOpen) {
       setTemplatesOpen(false)
+    } else if (publicationsOpen) {
+      setPublicationsOpen(false)
     }
-  }, [modal, shortcutsHelpOpen, whereUsedOpen, publishOpen, historyOpen, templatesOpen])
+  }, [modal, shortcutsHelpOpen, whereUsedOpen, publishOpen, historyOpen, templatesOpen, publicationsOpen])
 
   const anyOverlayOpen =
-    modal.kind !== 'none' || shortcutsHelpOpen || whereUsedOpen || publishOpen || historyOpen || templatesOpen
+    modal.kind !== 'none' ||
+    shortcutsHelpOpen ||
+    whereUsedOpen ||
+    publishOpen ||
+    historyOpen ||
+    templatesOpen ||
+    publicationsOpen
 
   useAppShortcuts(anyOverlayOpen, {
     onSave: handleExplicitSave,
@@ -776,6 +876,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         onOpenPublish={openPublishPanel}
         onOpenHistory={openHistoryPanel}
         onOpenTemplates={openTemplatesPanel}
+        onOpenPublications={openPublicationsPanel}
         onOpenTour={() => onboardingRef.current?.replay()}
         onNewDocument={() => setModal({ kind: 'new', entryKind: 'document' })}
         onNewDocumentFolder={() => setModal({ kind: 'new-folder', entryKind: 'document' })}
@@ -991,6 +1092,20 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           onUnarchive={(entryKind, relPath) => void handleUnarchiveTemplate(entryKind, relPath)}
           onCreate={(entryKind, title) => void handleCreateTemplate(entryKind, title)}
           onClose={() => setTemplatesOpen(false)}
+        />
+      )}
+
+      {publicationsOpen && (
+        <PublicationsPanel
+          publications={publications}
+          selectedPath={selectedPublicationPath}
+          selectedPublication={selectedPublication}
+          creating={creatingPublication}
+          deletingPaths={deletingPublicationPaths}
+          onSelect={(path) => void handleSelectPublication(path)}
+          onCreate={handleCreatePublication}
+          onDelete={(path) => void handleDeletePublication(path)}
+          onClose={() => setPublicationsOpen(false)}
         />
       )}
 

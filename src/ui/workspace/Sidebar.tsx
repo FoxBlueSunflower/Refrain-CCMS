@@ -46,6 +46,7 @@ interface SidebarProps {
   onOpenPublish?: () => void
   onOpenHistory?: () => void
   onOpenTemplates?: () => void
+  onOpenPublications?: () => void
   onOpenTour?: () => void
   onNewDocument?: () => void
   onNewDocumentFolder?: () => void
@@ -124,6 +125,7 @@ export function Sidebar({
   onOpenPublish,
   onOpenHistory,
   onOpenTemplates,
+  onOpenPublications,
   onOpenTour,
   onNewDocument,
   onNewDocumentFolder,
@@ -221,6 +223,15 @@ export function Sidebar({
               onClick={onOpenTemplates}
             >
               Templates
+            </button>
+          )}
+          {onOpenPublications && (
+            <button
+              type="button"
+              className="rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
+              onClick={onOpenPublications}
+            >
+              Publications
             </button>
           )}
           {onOpenTour && (

@@ -27,6 +27,8 @@ export {
   writeSiblingOrder,
 } from './folders'
 export { readAllDocuments } from './index-data'
+export type { PublicationSummary } from './publications'
+export { createPublication, deletePublication, readAllPublications, readPublication, writePublication } from './publications'
 export type { TemplateSummary } from './templates'
 export {
   archiveTemplate,

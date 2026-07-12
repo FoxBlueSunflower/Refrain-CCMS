@@ -9,17 +9,19 @@ interface DocumentTitleDialogProps {
   heading: string
   submitLabel: string
   initialValue?: string
+  placeholder?: string
   /** When non-empty, shows a "Start from" picker above the title input (blank by default). */
   templates?: TemplateOption[]
   onSubmit: (title: string, templatePath: string | null) => void
   onCancel: () => void
 }
 
-/** Shared title-prompt dialog, used for "new document"/"new snippet" (optionally with a template picker), and for "rename". */
+/** Shared title-prompt dialog, used for "new document"/"new snippet" (optionally with a template picker), "rename", and "new publication". */
 export function DocumentTitleDialog({
   heading,
   submitLabel,
   initialValue = '',
+  placeholder = 'Document title',
   templates,
   onSubmit,
   onCancel,
@@ -64,7 +66,7 @@ export function DocumentTitleDialog({
           type="text"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="Document title"
+          placeholder={placeholder}
           className="mt-3 w-full rounded border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-gray-100 placeholder:text-gray-400 focus:border-violet-400 focus:outline-none"
         />
         <div className="mt-4 flex justify-end gap-2">
