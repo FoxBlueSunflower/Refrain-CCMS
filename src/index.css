@@ -53,9 +53,14 @@ body {
   margin: 0.75em 0;
 }
 
-.markdown-body ul,
+.markdown-body ul {
+  padding-left: 1.5em;
+  list-style: disc;
+}
+
 .markdown-body ol {
   padding-left: 1.5em;
+  list-style: decimal;
 }
 
 .markdown-body blockquote {
