@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import type { PublicationNode } from '../publications/types'
 import { buildSampleWorkspaceFiles } from '../workspace/sample-workspace'
 import { buildWorkspaceIndex } from './build'
-import type { IndexDocument, IndexSnippet } from './types'
+import type { IndexDocument, IndexPublication, IndexSnippet } from './types'
 
 const BUILT_AT = '2026-07-09T00:00:00.000Z'
 
@@ -11,6 +12,10 @@ function doc(path: string, text: string): IndexDocument {
 
 function snippet(name: string, text: string): IndexSnippet {
   return { name, text }
+}
+
+function publication(path: string, title: string, nodes: PublicationNode[]): IndexPublication {
+  return { path, title, nodes }
 }
 
 describe('buildWorkspaceIndex', () => {
@@ -111,5 +116,80 @@ describe('buildWorkspaceIndex', () => {
     expect(index.snippets['warning-banner']).toEqual(['docs/guides/installation.md'])
     expect(index.snippets['support-contact']).toEqual(['docs/getting-started.md', 'docs/index.md'].sort())
     expect(index.conditions['audience=internal']).toEqual(['docs/guides/installation.md'])
+  })
+
+  it('leaves documentPublications empty when no publications are given', () => {
+    const index = buildWorkspaceIndex({ documents: [doc('docs/a.md', 'Hi.')], snippets: [] }, BUILT_AT)
+    expect(index.documentPublications).toEqual({})
+  })
+
+  it('indexes a doc referenced by one publication', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [doc('docs/a.md', 'Hi.')],
+        snippets: [],
+        publications: [publication('user-guide.json', 'User Guide', [{ type: 'doc', ref: 'docs/a.md' }])],
+      },
+      BUILT_AT,
+    )
+    expect(index.documentPublications).toEqual({ 'docs/a.md': [{ path: 'user-guide.json', title: 'User Guide' }] })
+  })
+
+  it('indexes a doc referenced by two publications, sorted by title', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [doc('docs/a.md', 'Hi.')],
+        snippets: [],
+        publications: [
+          publication('z-guide.json', 'Z Guide', [{ type: 'doc', ref: 'docs/a.md' }]),
+          publication('a-guide.json', 'A Guide', [{ type: 'doc', ref: 'docs/a.md' }]),
+        ],
+      },
+      BUILT_AT,
+    )
+    expect(index.documentPublications['docs/a.md']).toEqual([
+      { path: 'a-guide.json', title: 'A Guide' },
+      { path: 'z-guide.json', title: 'Z Guide' },
+    ])
+  })
+
+  it('indexes a doc referenced via a nested heading node', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [doc('docs/a.md', 'Hi.')],
+        snippets: [],
+        publications: [
+          publication('user-guide.json', 'User Guide', [
+            { type: 'heading', title: 'Section', children: [{ type: 'doc', ref: 'docs/a.md' }] },
+          ]),
+        ],
+      },
+      BUILT_AT,
+    )
+    expect(index.documentPublications['docs/a.md']).toEqual([{ path: 'user-guide.json', title: 'User Guide' }])
+  })
+
+  it('leaves a doc absent from documentPublications when no publication references it', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [doc('docs/a.md', 'Hi.'), doc('docs/b.md', 'Bye.')],
+        snippets: [],
+        publications: [publication('user-guide.json', 'User Guide', [{ type: 'doc', ref: 'docs/a.md' }])],
+      },
+      BUILT_AT,
+    )
+    expect(index.documentPublications['docs/b.md']).toBeUndefined()
+  })
+
+  it('still surfaces an orphaned publication ref to a doc that no longer exists (fail-soft, same as other index entries)', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [],
+        snippets: [],
+        publications: [publication('user-guide.json', 'User Guide', [{ type: 'doc', ref: 'docs/gone.md' }])],
+      },
+      BUILT_AT,
+    )
+    expect(index.documentPublications['docs/gone.md']).toEqual([{ path: 'user-guide.json', title: 'User Guide' }])
   })
 })

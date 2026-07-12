@@ -32,6 +32,7 @@ import {
   moveFolder,
   pathExists,
   readAllDocuments,
+  readAllPublicationRefs,
   readAllPublications,
   readAllSnippets,
   readAllTemplates,
@@ -149,7 +150,13 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   const [variables, setVariables] = useState<VariablesFile>({})
   const [snippets, setSnippets] = useState<SnippetSource>({})
   const [documentPaths, setDocumentPaths] = useState<ReadonlySet<string>>(new Set())
-  const [index, setIndex] = useState<WorkspaceIndex>({ builtAt: '', snippets: {}, variables: {}, conditions: {} })
+  const [index, setIndex] = useState<WorkspaceIndex>({
+    builtAt: '',
+    snippets: {},
+    variables: {},
+    conditions: {},
+    documentPublications: {},
+  })
   const [whereUsedOpen, setWhereUsedOpen] = useState(false)
 
   const [conditionsFile, setConditionsFile] = useState<ConditionsFile>({})
@@ -202,13 +209,15 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   const bump = () => setRefreshToken((t) => t + 1)
 
   const reloadResolverData = useCallback(async () => {
-    const [nextVariables, nextSnippets, nextDocuments, nextConditionsFile, workspaceConfigResult] = await Promise.all([
-      readVariablesFile(handle),
-      readAllSnippets(handle),
-      readAllDocuments(handle),
-      readConditionsFile(handle),
-      readWorkspaceConfig(handle),
-    ])
+    const [nextVariables, nextSnippets, nextDocuments, nextConditionsFile, workspaceConfigResult, nextPublicationRefs] =
+      await Promise.all([
+        readVariablesFile(handle),
+        readAllSnippets(handle),
+        readAllDocuments(handle),
+        readConditionsFile(handle),
+        readWorkspaceConfig(handle),
+        readAllPublicationRefs(handle),
+      ])
     setVariables(nextVariables)
     setSnippets(nextSnippets)
     setDocumentPaths(new Set(nextDocuments.map((d) => d.path.slice(baseDirFor('document').length + 1))))
@@ -218,6 +227,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     const nextIndex = buildWorkspaceIndex({
       documents: nextDocuments,
       snippets: Object.entries(nextSnippets).map(([name, text]) => ({ name, text })),
+      publications: nextPublicationRefs,
     })
     setIndex(nextIndex)
     // .app/index.json is a disposable cache (see SPEC.md) — always rebuilt
@@ -245,6 +255,11 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   }, [handle, modal])
 
   const resolveContext = useMemo(() => ({ variables, snippets }), [variables, snippets])
+
+  const documentIndexPaths = useMemo(
+    () => [...documentPaths].map((path) => `${baseDirFor('document')}/${path}`),
+    [documentPaths],
+  )
 
   const completionItems = useMemo(() => {
     const variableItems: CompletionItem[] = Object.entries(variables)
@@ -1117,10 +1132,16 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         <WhereUsedPanel
           variables={variables}
           snippets={snippets}
+          documents={documentIndexPaths}
           index={index}
           onOpenDocument={(docPath) => {
             setWhereUsedOpen(false)
             void openEntry('document', docPath.slice(baseDirFor('document').length + 1))
+          }}
+          onOpenPublication={(path) => {
+            setWhereUsedOpen(false)
+            openPublicationsPanel()
+            void handleSelectPublication(path)
           }}
           onClose={() => setWhereUsedOpen(false)}
         />
