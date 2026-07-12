@@ -97,9 +97,22 @@ export function buildHorizontalRuleInsertion(doc: string, from: number, to: numb
   return { from, to, insertText, cursorPos: insertText.length }
 }
 
-/** Inserts a blank line at `from`, discarding any selected text. */
-export function buildSpaceInsertion(from: number, to: number): BlockInsertion {
-  return { from, to, insertText: '\n\n', cursorPos: 2 }
+/**
+ * Inserts a paragraph containing a single non-breaking space at `from`,
+ * discarding any selected text. A bare blank line has no effect in rendered
+ * output — CommonMark collapses any run of blank lines into the same single
+ * paragraph break — so this needs actual paragraph content (an `&nbsp;`) to
+ * produce visible vertical space in the preview/published HTML. Reuses the
+ * same blank-line-padding logic as `buildHorizontalRuleInsertion` so it
+ * renders as its own paragraph instead of merging into an adjacent line.
+ */
+export function buildSpaceInsertion(doc: string, from: number, to: number): BlockInsertion {
+  const before = doc.slice(0, from)
+  const leading = before.length === 0 || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n'
+  const after = doc.slice(to)
+  const trailing = after.length === 0 || after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n'
+  const insertText = `${leading}&nbsp;${trailing}`
+  return { from, to, insertText, cursorPos: insertText.length }
 }
 
 export function buildBlockInsertion(doc: string, from: number, to: number, action: BlockAction): BlockInsertion {
@@ -121,6 +134,6 @@ export function buildBlockInsertion(doc: string, from: number, to: number, actio
     case 'subheading':
       return buildSubheadingInsertion(doc, from)
     case 'space':
-      return buildSpaceInsertion(from, to)
+      return buildSpaceInsertion(doc, from, to)
   }
 }
