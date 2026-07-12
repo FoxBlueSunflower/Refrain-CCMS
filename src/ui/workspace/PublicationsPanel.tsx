@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { getNodeAt, indentNode, insertNode, moveNode, outdentNode, removeNode, renameHeading, type NodePath } from '../../core/publications/edit'
 import type { Publication, PublicationNode } from '../../core/publications/types'
 import type { PublishProfile } from '../../core/workspace/types'
 import type { PublicationSummary } from '../../fs'
 import { EmptyState } from '../shared/EmptyState'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DocumentTitleDialog } from './NewDocumentDialog'
+import { PublicationTree } from './PublicationTree'
 import { type PublicationPublishResultSummary, warningLabel } from './PublishPanel'
 
 interface PublicationsPanelProps {
@@ -16,38 +18,24 @@ interface PublicationsPanelProps {
   profiles: Record<string, PublishProfile>
   publishing: boolean
   publishResult: PublicationPublishResultSummary | null
+  documentPaths: ReadonlySet<string>
   onSelect: (path: string) => void
   /** Returns whether creation succeeded, so the dialog only closes (and the typed title is only discarded) on success — a failure keeps it open with the title intact. */
   onCreate: (title: string) => Promise<boolean>
   onDelete: (path: string) => void
   onPublish: (path: string, profileName: string) => void
+  /** Applies a pure `PublicationNode[]` transform to the selected publication and persists the result. */
+  onEditPublication: (mutate: (nodes: PublicationNode[]) => PublicationNode[]) => void
   onClose: () => void
 }
 
-function NodeList({ nodes, depth }: { nodes: PublicationNode[]; depth: number }) {
-  return (
-    <ul className={depth > 0 ? 'ml-4 space-y-1 border-l border-gray-700 pl-3' : 'space-y-1'}>
-      {nodes.map((node, index) => (
-        <li key={index}>
-          {node.type === 'heading' ? (
-            <>
-              <span className="text-sm font-semibold text-gray-200">{node.title}</span>
-              {node.children && node.children.length > 0 && <NodeList nodes={node.children} depth={depth + 1} />}
-            </>
-          ) : (
-            <span className="text-sm text-gray-400">{node.ref}</span>
-          )}
-        </li>
-      ))}
-    </ul>
-  )
+/** Index (append position) at the end of the children array addressed by `parentPath` ('' for root). */
+function appendIndex(nodes: PublicationNode[], parentPath: NodePath): number {
+  if (parentPath.length === 0) return nodes.length
+  const parent = getNodeAt(nodes, parentPath)
+  return parent && parent.type === 'heading' ? (parent.children?.length ?? 0) : 0
 }
 
-/**
- * Phase 9b: publications/ is real (list, create, delete, read-only preview)
- * but the tree editor itself — drag-to-reorder, indent-to-nest, add/remove
- * node — is Phase 9d. The preview below is deliberately non-interactive.
- */
 export function PublicationsPanel({
   publications,
   selectedPath,
@@ -57,14 +45,20 @@ export function PublicationsPanel({
   profiles,
   publishing,
   publishResult,
+  documentPaths,
   onSelect,
   onCreate,
   onDelete,
   onPublish,
+  onEditPublication,
   onClose,
 }: PublicationsPanelProps) {
   const [newDialogOpen, setNewDialogOpen] = useState(false)
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(null)
+  const [addHeadingParentPath, setAddHeadingParentPath] = useState<NodePath | null>(null)
+  const [addDocParentPath, setAddDocParentPath] = useState<NodePath | null>(null)
+  const [renameTarget, setRenameTarget] = useState<{ path: NodePath; title: string } | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<{ path: NodePath; node: PublicationNode } | null>(null)
   const profileNames = Object.keys(profiles)
   const [selectedProfile, setSelectedProfile] = useState(profileNames[0] ?? '')
 
@@ -147,14 +141,51 @@ export function PublicationsPanel({
             </div>
             <div className="flex-1 overflow-auto p-4">
               {selectedPublication ? (
-                selectedPublication.nodes.length === 0 ? (
-                  <EmptyState
-                    title="No documents yet"
-                    description="The publication editor (reorder, nest, add documents) is coming in a future update."
-                  />
-                ) : (
-                  <NodeList nodes={selectedPublication.nodes} depth={0} />
-                )
+                <>
+                  <div className="mb-3 flex gap-2">
+                    <button
+                      type="button"
+                      className="rounded border border-gray-600 px-2 py-1 text-xs text-gray-300 hover:bg-gray-700"
+                      onClick={() => setAddHeadingParentPath([])}
+                    >
+                      + Heading
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-gray-600 px-2 py-1 text-xs text-gray-300 hover:bg-gray-700 disabled:opacity-50"
+                      disabled={documentPaths.size === 0}
+                      onClick={() => setAddDocParentPath([])}
+                    >
+                      + Document
+                    </button>
+                  </div>
+                  {selectedPublication.nodes.length === 0 ? (
+                    <EmptyState
+                      title="No documents yet"
+                      description="Use + Heading or + Document above to start building this publication's structure."
+                    />
+                  ) : (
+                    <PublicationTree
+                      nodes={selectedPublication.nodes}
+                      onMove={(fromPath, toParentPath, toIndex) =>
+                        onEditPublication((nodes) => moveNode(nodes, fromPath, toParentPath, toIndex))
+                      }
+                      onIndent={(path) => onEditPublication((nodes) => indentNode(nodes, path))}
+                      onOutdent={(path) => onEditPublication((nodes) => outdentNode(nodes, path))}
+                      onRequestRemove={(path, node) => {
+                        const hasChildren = node.type === 'heading' && (node.children?.length ?? 0) > 0
+                        if (hasChildren) {
+                          setRemoveTarget({ path, node })
+                        } else {
+                          onEditPublication((nodes) => removeNode(nodes, path))
+                        }
+                      }}
+                      onAddHeadingUnder={(parentPath) => setAddHeadingParentPath(parentPath)}
+                      onAddDocUnder={(parentPath) => setAddDocParentPath(parentPath)}
+                      onRenameHeading={(path, title) => setRenameTarget({ path, title })}
+                    />
+                  )}
+                </>
               ) : (
                 <EmptyState title="Pick a publication on the left to preview its contents" />
               )}
@@ -243,6 +274,87 @@ export function PublicationsPanel({
             setConfirmDeletePath(null)
           }}
           onCancel={() => setConfirmDeletePath(null)}
+        />
+      )}
+
+      {addHeadingParentPath !== null && (
+        <DocumentTitleDialog
+          heading="Add heading"
+          submitLabel="Add"
+          placeholder="Heading title"
+          onSubmit={(title) => {
+            const parentPath = addHeadingParentPath
+            onEditPublication((nodes) => insertNode(nodes, parentPath, appendIndex(nodes, parentPath), { type: 'heading', title }))
+            setAddHeadingParentPath(null)
+          }}
+          onCancel={() => setAddHeadingParentPath(null)}
+        />
+      )}
+
+      {renameTarget && (
+        <DocumentTitleDialog
+          heading="Rename heading"
+          submitLabel="Rename"
+          initialValue={renameTarget.title}
+          placeholder="Heading title"
+          onSubmit={(title) => {
+            const path = renameTarget.path
+            onEditPublication((nodes) => renameHeading(nodes, path, title))
+            setRenameTarget(null)
+          }}
+          onCancel={() => setRenameTarget(null)}
+        />
+      )}
+
+      {addDocParentPath !== null && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 p-4" onClick={() => setAddDocParentPath(null)}>
+          <div
+            className="flex max-h-[70vh] w-full max-w-sm flex-col rounded-lg bg-gray-800 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-700 p-4">
+              <h3 className="text-sm font-semibold text-gray-100">Add document</h3>
+              <button
+                type="button"
+                className="rounded border border-gray-600 px-2 py-1 text-xs text-gray-300 hover:bg-gray-700"
+                onClick={() => setAddDocParentPath(null)}
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-2">
+              {[...documentPaths].sort().map((docPath) => (
+                <button
+                  key={docPath}
+                  type="button"
+                  className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                  onClick={() => {
+                    const parentPath = addDocParentPath
+                    onEditPublication((nodes) =>
+                      insertNode(nodes, parentPath, appendIndex(nodes, parentPath), { type: 'doc', ref: `docs/${docPath}` }),
+                    )
+                    setAddDocParentPath(null)
+                  }}
+                >
+                  {docPath}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {removeTarget && (
+        <ConfirmDialog
+          title="Remove this heading?"
+          message="This removes the heading and everything nested under it from this publication's structure. The documents themselves are untouched — only this publication's tree changes."
+          confirmLabel="Remove"
+          onConfirm={() => {
+            const path = removeTarget.path
+            onEditPublication((nodes) => removeNode(nodes, path))
+            setRemoveTarget(null)
+          }}
+          onCancel={() => setRemoveTarget(null)}
         />
       )}
     </>
