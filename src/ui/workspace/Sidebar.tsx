@@ -69,6 +69,14 @@ interface SidebarProps {
   onOpenVariables?: () => void
   onOpenConditions?: () => void
   onOpenProfiles?: () => void
+  /**
+   * True while the document editor is the active pane. Publish, Manage
+   * profiles, Edit variables, and Edit conditions live in the editor's own
+   * chrome (header buttons / Insert toolbar dropdowns) whenever a document is
+   * open — the Sidebar only shows them as a fallback so they stay reachable
+   * when there's no document to anchor them to.
+   */
+  documentEditorOpen?: boolean
   /** Bump this to force the tree to re-fetch after an external change. */
   refreshToken?: number
 }
@@ -148,6 +156,7 @@ export function Sidebar({
   onOpenVariables,
   onOpenConditions,
   onOpenProfiles,
+  documentEditorOpen,
   refreshToken,
 }: SidebarProps) {
   const docs = useDirTree(readDocTree, handle, refreshToken)
@@ -198,7 +207,7 @@ export function Sidebar({
               Where-used
             </button>
           )}
-          {onOpenPublish && (
+          {!documentEditorOpen && onOpenPublish && (
             <button
               type="button"
               className="rounded border border-violet-600 px-2 py-0.5 text-xs text-violet-300 hover:bg-violet-900/40"
@@ -385,7 +394,7 @@ export function Sidebar({
         )}
       </div>
 
-      {onOpenVariables && (
+      {!documentEditorOpen && onOpenVariables && (
         <div>
           <h2 className="mb-1 truncate text-sm font-semibold uppercase tracking-wide text-gray-400">Variables</h2>
           <button
@@ -398,7 +407,7 @@ export function Sidebar({
         </div>
       )}
 
-      {onOpenConditions && (
+      {!documentEditorOpen && onOpenConditions && (
         <div>
           <h2 className="mb-1 truncate text-sm font-semibold uppercase tracking-wide text-gray-400">Conditions</h2>
           <button
@@ -411,7 +420,7 @@ export function Sidebar({
         </div>
       )}
 
-      {onOpenProfiles && (
+      {!documentEditorOpen && onOpenProfiles && (
         <div>
           <h2 className="mb-1 truncate text-sm font-semibold uppercase tracking-wide text-gray-400">Publish profiles</h2>
           <button

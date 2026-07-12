@@ -17,6 +17,8 @@ interface InsertToolbarProps {
   onInsertBlock: (action: BlockAction) => void
   onInsertInline: (action: InlineAction) => void
   onInsertLink: (target: string) => void
+  onOpenVariables: () => void
+  onOpenConditions: () => void
 }
 
 const INLINE_ACTIONS: { action: InlineAction; label: string; className: string }[] = [
@@ -92,6 +94,8 @@ export function InsertToolbar({
   onInsertBlock,
   onInsertInline,
   onInsertLink,
+  onOpenVariables,
+  onOpenConditions,
 }: InsertToolbarProps) {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null)
   const [txtView, setTxtView] = useState<'menu' | 'link'>('menu')
@@ -133,6 +137,16 @@ export function InsertToolbar({
     const trimmed = target.trim()
     if (trimmed.length === 0) return
     onInsertLink(trimmed)
+    close()
+  }
+
+  function openVariables() {
+    onOpenVariables()
+    close()
+  }
+
+  function openConditions() {
+    onOpenConditions()
     close()
   }
 
@@ -243,6 +257,14 @@ export function InsertToolbar({
                 {v.description && <span className="ml-2 text-xs text-gray-400">{v.description}</span>}
               </button>
             ))}
+            <div className="my-1 border-t border-gray-700" />
+            <button
+              type="button"
+              className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+              onClick={openVariables}
+            >
+              Edit variables…
+            </button>
           </DropdownPanel>
         )}
       </div>
@@ -285,6 +307,14 @@ export function InsertToolbar({
                 </button>
               )),
             )}
+            <div className="my-1 border-t border-gray-700" />
+            <button
+              type="button"
+              className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+              onClick={openConditions}
+            >
+              Edit conditions…
+            </button>
           </DropdownPanel>
         )}
       </div>
