@@ -45,7 +45,8 @@ export function buildChecklistInsertion(doc: string, from: number, to: number): 
  * Prefixes only the single line containing `from` with a level-2 heading
  * marker (`to` is ignored — a heading action promoting several lines to
  * "## " each doesn't make sense). H1 is deliberately not offered here: it's
- * reserved for the doc-title rule planned in BUILD_PLAN.md Phase 9a.
+ * reserved for the doc-title rule enforced by checkHeadingNormalization
+ * (src/core/frontmatter/headingCheck.ts, Phase 9a).
  */
 export function buildSubheadingInsertion(doc: string, from: number): BlockInsertion {
   const snappedFrom = lineStart(doc, from)

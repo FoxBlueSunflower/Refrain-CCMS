@@ -1,4 +1,5 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { checkHeadingNormalization } from '../../core/frontmatter/headingCheck'
 import { parseFrontmatter, type FrontmatterScalar } from '../../core/frontmatter/parse'
 import type { FrontmatterEntryKind } from '../../core/frontmatter/schema'
 import { deleteFrontmatterField, setFrontmatterField } from '../../core/frontmatter/update'
@@ -79,6 +80,13 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
   const docTextRef = useRef(initialValue)
   const [docText, setDocText] = useState(initialValue)
   const parsed = useMemo(() => parseFrontmatter(docText), [docText])
+  // Heading normalization (Phase 9a) only applies to documents — snippets have
+  // no title field and no publication-tree node to label.
+  const headingWarnings = useMemo(
+    () => (entryKind === 'document' ? checkHeadingNormalization(parsed.body, parsed.frontmatter.title) : []),
+    [entryKind, parsed],
+  )
+  const frontmatterWarnings = useMemo(() => [...parsed.warnings, ...headingWarnings], [parsed, headingWarnings])
 
   useImperativeHandle(forwardedRef, () => ({
     togglePreview: () => setPreviewVisible((visible) => !visible),
@@ -152,7 +160,7 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
       <FrontmatterFormPanel
         entryKind={entryKind}
         frontmatter={parsed.frontmatter}
-        warnings={parsed.warnings}
+        warnings={frontmatterWarnings}
         collapsed={frontmatterCollapsed}
         onToggleCollapsed={() => setFrontmatterCollapsed((collapsed) => !collapsed)}
         onFieldChange={handleFrontmatterFieldChange}
