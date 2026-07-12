@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   buildBlockquoteInsertion,
   buildBulletListInsertion,
+  buildChecklistInsertion,
   buildCodeBlockInsertion,
   buildHorizontalRuleInsertion,
   buildNumberedListInsertion,
+  buildSubheadingInsertion,
+  buildTableInsertion,
 } from './blockEditing'
 
 describe('buildBulletListInsertion', () => {
@@ -71,6 +74,68 @@ describe('buildCodeBlockInsertion', () => {
     expect(result.insertText).toBe('```\nconst x = 1;\n```')
     const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
     expect(combined).toBe('```\nconst x = 1;\n```')
+  })
+})
+
+describe('buildChecklistInsertion', () => {
+  it('prefixes a single line with "- [ ] "', () => {
+    const doc = 'Buy milk'
+    const result = buildChecklistInsertion(doc, 0, doc.length)
+    expect(result.insertText).toBe('- [ ] Buy milk')
+  })
+
+  it('prefixes every line of a multi-line selection', () => {
+    const doc = 'First\nSecond'
+    const result = buildChecklistInsertion(doc, 0, doc.length)
+    expect(result.insertText).toBe('- [ ] First\n- [ ] Second')
+  })
+})
+
+describe('buildSubheadingInsertion', () => {
+  it('prefixes the current (empty) line with "## " when nothing is selected', () => {
+    const doc = ''
+    const result = buildSubheadingInsertion(doc, 0)
+    expect(result.insertText).toBe('## ')
+  })
+
+  it('snaps a mid-line cursor out to the whole line before prefixing', () => {
+    const doc = 'Section title'
+    const result = buildSubheadingInsertion(doc, 5)
+    expect(result.from).toBe(0)
+    expect(result.to).toBe(doc.length)
+    expect(result.insertText).toBe('## Section title')
+  })
+
+  it('only prefixes the line containing `from`, ignoring the rest of a multi-line document', () => {
+    const doc = 'First line\nSecond line\nThird line'
+    const from = doc.indexOf('Second')
+    const result = buildSubheadingInsertion(doc, from)
+    const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
+    expect(combined).toBe('First line\n## Second line\nThird line')
+  })
+})
+
+describe('buildTableInsertion', () => {
+  it('inserts a bare table template at the start of an empty document', () => {
+    const doc = ''
+    const result = buildTableInsertion(doc, 0, 0)
+    expect(result.insertText).toBe('| Column 1 | Column 2 |\n| --- | --- |\n| Cell 1 | Cell 2 |')
+  })
+
+  it('pads with a blank line before a table inserted right after paragraph text (no trailing newline)', () => {
+    const doc = 'Some text.'
+    const result = buildTableInsertion(doc, doc.length, doc.length)
+    const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
+    expect(combined).toBe('Some text.\n\n| Column 1 | Column 2 |\n| --- | --- |\n| Cell 1 | Cell 2 |')
+  })
+
+  it('replaces a non-empty selection rather than wrapping it', () => {
+    const doc = 'Before SELECTED After'
+    const from = doc.indexOf('SELECTED')
+    const to = from + 'SELECTED'.length
+    const result = buildTableInsertion(doc, from, to)
+    const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
+    expect(combined).toBe('Before \n\n| Column 1 | Column 2 |\n| --- | --- |\n| Cell 1 | Cell 2 |\n\n After')
   })
 })
 

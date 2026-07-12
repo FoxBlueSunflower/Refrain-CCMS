@@ -2,32 +2,39 @@ import { useState, type ReactElement } from 'react'
 import type { ConditionsFile } from '../../core/workspace/types'
 import type { BlockAction } from './blockEditing'
 import type { TokenCompletionItems } from './completions'
-import { BulletListIcon, NumberedListIcon } from './listIcons'
+import type { InlineAction } from './inlineEditing'
+import { BulletListIcon, ChecklistIcon, NumberedListIcon } from './listIcons'
 
-type MenuKey = 'var' | 'snpt' | 'con' | 'lists' | 'block'
+type MenuKey = 'txt' | 'var' | 'snpt' | 'con' | 'lists' | 'block'
 
 interface InsertToolbarProps {
   completionItems: TokenCompletionItems
   conditionsFile: ConditionsFile
+  documentPaths: ReadonlySet<string>
   onInsertText: (text: string) => void
   onInsertCondition: (dimension: string, value: string) => void
   onInsertBlock: (action: BlockAction) => void
+  onInsertInline: (action: InlineAction) => void
+  onInsertLink: (target: string) => void
 }
 
-// Phase 8f: block-insertion toolbar actions. Deliberately excludes headings —
-// Refrain's title/H1 normalization rule lands in Phase 9a, and a heading
-// toolbar action needs to be gated to a single document-title H1 once that
-// rule exists (see BUILD_PLAN.md 8f), so it's left out here rather than
-// added ungated.
+const INLINE_ACTIONS: { action: InlineAction; label: string; className: string }[] = [
+  { action: 'bold', label: 'Bold', className: 'font-bold' },
+  { action: 'italic', label: 'Italic', className: 'italic' },
+  { action: 'underline', label: 'Underline', className: 'underline' },
+]
+
 const LIST_ACTIONS: { action: BlockAction; label: string; icon: () => ReactElement }[] = [
   { action: 'bullet-list', label: 'Bulleted list', icon: BulletListIcon },
   { action: 'numbered-list', label: 'Numbered list', icon: NumberedListIcon },
+  { action: 'checklist', label: 'Checklist', icon: ChecklistIcon },
 ]
 
 const OTHER_BLOCK_ACTIONS: { action: BlockAction; label: string }[] = [
   { action: 'blockquote', label: 'Blockquote' },
   { action: 'code-block', label: 'Code block' },
   { action: 'horizontal-rule', label: 'Horizontal rule' },
+  { action: 'table', label: 'Table' },
 ]
 
 function ToolbarButton({
@@ -58,15 +65,30 @@ function DropdownPanel({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function InsertToolbar({ completionItems, conditionsFile, onInsertText, onInsertCondition, onInsertBlock }: InsertToolbarProps) {
+export function InsertToolbar({
+  completionItems,
+  conditionsFile,
+  documentPaths,
+  onInsertText,
+  onInsertCondition,
+  onInsertBlock,
+  onInsertInline,
+  onInsertLink,
+}: InsertToolbarProps) {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null)
+  const [txtView, setTxtView] = useState<'menu' | 'link'>('menu')
+  const [linkDraft, setLinkDraft] = useState('')
 
   function toggleMenu(menu: MenuKey) {
     setOpenMenu((current) => (current === menu ? null : menu))
+    setTxtView('menu')
+    setLinkDraft('')
   }
 
   function close() {
     setOpenMenu(null)
+    setTxtView('menu')
+    setLinkDraft('')
   }
 
   function insertText(text: string) {
@@ -84,11 +106,107 @@ export function InsertToolbar({ completionItems, conditionsFile, onInsertText, o
     close()
   }
 
+  function insertInline(action: InlineAction) {
+    onInsertInline(action)
+    close()
+  }
+
+  function insertLink(target: string) {
+    const trimmed = target.trim()
+    if (trimmed.length === 0) return
+    onInsertLink(trimmed)
+    close()
+  }
+
   const hasConditions = Object.values(conditionsFile).some((values) => values.length > 0)
 
   return (
     <div className="flex items-center gap-2 border-b border-gray-700 bg-gray-800 px-4 py-2">
       {openMenu !== null && <div className="fixed inset-0 z-10" onClick={close} />}
+      <div className="relative z-20">
+        <ToolbarButton label="Txt" isOpen={openMenu === 'txt'} onToggle={() => toggleMenu('txt')} />
+        {openMenu === 'txt' && (
+          <DropdownPanel>
+            {txtView === 'menu' && (
+              <>
+                {INLINE_ACTIONS.map(({ action, label, className }) => (
+                  <button
+                    key={action}
+                    type="button"
+                    className={`block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700 ${className}`}
+                    onClick={() => insertInline(action)}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                  onClick={() => insertBlock('subheading')}
+                >
+                  Subheading
+                </button>
+                <button
+                  type="button"
+                  className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                  onClick={() => setTxtView('link')}
+                >
+                  Link ▸
+                </button>
+              </>
+            )}
+            {txtView === 'link' && (
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  className="w-fit rounded px-1 py-0.5 text-left text-xs text-gray-400 hover:bg-gray-700 hover:text-gray-200"
+                  onClick={() => setTxtView('menu')}
+                >
+                  ◂ Back
+                </button>
+                <form
+                  className="flex gap-1"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    insertLink(linkDraft)
+                  }}
+                >
+                  <input
+                    type="text"
+                    autoFocus
+                    value={linkDraft}
+                    onChange={(event) => setLinkDraft(event.target.value)}
+                    placeholder="https://example.com"
+                    className="min-w-0 flex-1 rounded border border-gray-600 bg-gray-900 px-2 py-0.5 text-xs text-gray-100 focus:border-violet-400 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
+                  >
+                    Insert
+                  </button>
+                </form>
+                {documentPaths.size > 0 && (
+                  <>
+                    <p className="px-1 text-xs text-gray-400">Or link to a document:</p>
+                    {[...documentPaths].sort().map((docPath) => (
+                      <button
+                        key={docPath}
+                        type="button"
+                        className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                        onClick={() => insertLink(docPath)}
+                      >
+                        {docPath}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </DropdownPanel>
+        )}
+      </div>
+
       <div className="relative z-20">
         <ToolbarButton label="Var" isOpen={openMenu === 'var'} onToggle={() => toggleMenu('var')} />
         {openMenu === 'var' && (
@@ -172,7 +290,7 @@ export function InsertToolbar({ completionItems, conditionsFile, onInsertText, o
       </div>
 
       <div className="relative z-20">
-        <ToolbarButton label="Block" isOpen={openMenu === 'block'} onToggle={() => toggleMenu('block')} />
+        <ToolbarButton label="Blocks" isOpen={openMenu === 'block'} onToggle={() => toggleMenu('block')} />
         {openMenu === 'block' && (
           <DropdownPanel>
             {OTHER_BLOCK_ACTIONS.map(({ action, label }) => (

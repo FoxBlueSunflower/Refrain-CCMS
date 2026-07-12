@@ -29,3 +29,17 @@ export function NumberedListIcon() {
     </svg>
   )
 }
+
+export function ChecklistIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="0.5" y="1.5" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M1.2 3L1.8 3.6L3.1 2.2" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="0.5" y="6.5" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="0.5" y="11.5" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M6 3H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M6 8H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M6 13H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
