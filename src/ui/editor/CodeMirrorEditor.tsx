@@ -116,10 +116,10 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
       const view = viewRef.current
       if (!view) return
       const { from, to } = view.state.selection.main
-      const { insertText, cursorPos } = buildConditionInsertion(view.state.doc.toString(), from, to, dimension, value)
+      const result = buildConditionInsertion(view.state.doc.toString(), from, to, dimension, value)
       view.dispatch({
-        changes: { from, to, insert: insertText },
-        selection: { anchor: from + cursorPos },
+        changes: { from: result.from, to: result.to, insert: result.insertText },
+        selection: { anchor: result.from + result.cursorPos },
       })
       view.focus()
     },
