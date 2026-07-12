@@ -56,6 +56,12 @@ const MARKDOWN_BODY_CSS = `
 .markdown-body code { background: #f3f4f6; border-radius: 0.25em; padding: 0.1em 0.35em; font-size: 0.9em; }
 .markdown-body pre code { display: block; padding: 0.75em; overflow-x: auto; background: #f3f4f6; border-radius: 0.375em; }
 .markdown-body a { color: #7c3aed; }
+.markdown-body li:has(> input[type='checkbox']) { list-style: none; margin-left: -1.5em; }
+.markdown-body input[type='checkbox'] { appearance: none; -webkit-appearance: none; width: 0.9em; height: 0.9em; border: 1px solid #9ca3af; border-radius: 0.2em; margin-right: 0.5em; vertical-align: middle; position: relative; top: -1px; }
+.markdown-body input[type='checkbox']:checked { background: #7c3aed; border-color: #7c3aed; }
+.markdown-body input[type='checkbox']:checked::after { content: ''; position: absolute; left: 0.28em; top: 0.06em; width: 0.2em; height: 0.4em; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.markdown-body table { border-collapse: collapse; }
+.markdown-body th, .markdown-body td { border: 1px solid #d1d5db; padding: 0.4em 0.6em; }
 .rf-resolved-var { background-color: #ede9fe; border-radius: 0.2em; padding: 0 0.2em; }
 .rf-resolve-error { background-color: #fee2e2; color: #991b1b; border-radius: 0.2em; padding: 0 0.35em; font-size: 0.9em; }
 `

@@ -6,6 +6,7 @@ import {
   buildCodeBlockInsertion,
   buildHorizontalRuleInsertion,
   buildNumberedListInsertion,
+  buildSpaceInsertion,
   buildSubheadingInsertion,
   buildTableInsertion,
 } from './blockEditing'
@@ -184,5 +185,28 @@ describe('buildHorizontalRuleInsertion', () => {
     const result = buildHorizontalRuleInsertion(doc, from, to)
     const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
     expect(combined).toBe('Before \n\n---\n\n After')
+  })
+})
+
+describe('buildSpaceInsertion', () => {
+  it('inserts a blank line at the very start of an empty document', () => {
+    const result = buildSpaceInsertion(0, 0)
+    expect(result.insertText).toBe('\n\n')
+  })
+
+  it('inserts a blank line right after text with no trailing newline', () => {
+    const doc = 'Some text.'
+    const result = buildSpaceInsertion(doc.length, doc.length)
+    const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
+    expect(combined).toBe('Some text.\n\n')
+  })
+
+  it('discards a non-empty selection rather than wrapping it', () => {
+    const doc = 'Before SELECTED After'
+    const from = doc.indexOf('SELECTED')
+    const to = from + 'SELECTED'.length
+    const result = buildSpaceInsertion(from, to)
+    const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
+    expect(combined).toBe('Before \n\n After')
   })
 })

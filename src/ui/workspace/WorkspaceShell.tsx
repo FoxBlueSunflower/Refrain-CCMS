@@ -767,7 +767,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   })
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <OnboardingController ref={onboardingRef} showTourOnMount={justCreatedSample} />
       <Sidebar
         handle={handle}

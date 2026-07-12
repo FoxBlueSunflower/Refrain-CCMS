@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react'
+import { isExternalHref } from '../../core/workspace/paths'
 import type { ConditionsFile } from '../../core/workspace/types'
 import type { BlockAction } from './blockEditing'
 import type { TokenCompletionItems } from './completions'
@@ -35,6 +36,7 @@ const OTHER_BLOCK_ACTIONS: { action: BlockAction; label: string }[] = [
   { action: 'code-block', label: 'Code block' },
   { action: 'horizontal-rule', label: 'Horizontal rule' },
   { action: 'table', label: 'Table' },
+  { action: 'space', label: 'Space' },
 ]
 
 function ToolbarButton({
@@ -55,6 +57,22 @@ function ToolbarButton({
       {label} ▾
     </button>
   )
+}
+
+/**
+ * The free-text link field is documented (via its placeholder) as being for
+ * external URLs — internal doc links have their own picker list below it.
+ * Users commonly paste/type a bare domain without a scheme (e.g.
+ * "example.com"); without a scheme, classifyLink can't tell that's external
+ * and misclassifies it as a broken internal link. Only this field's raw
+ * input gets normalized — doc-path buttons pass real relative paths straight
+ * to insertLink and must stay untouched.
+ */
+function normalizeExternalTarget(target: string): string {
+  if (target.startsWith('#') || target.startsWith('/') || target.startsWith('.') || target.endsWith('.md') || isExternalHref(target)) {
+    return target
+  }
+  return `https://${target}`
 }
 
 function DropdownPanel({ children }: { children: React.ReactNode }) {
@@ -168,7 +186,8 @@ export function InsertToolbar({
                   className="flex gap-1"
                   onSubmit={(event) => {
                     event.preventDefault()
-                    insertLink(linkDraft)
+                    const trimmed = linkDraft.trim()
+                    insertLink(trimmed.length === 0 ? trimmed : normalizeExternalTarget(trimmed))
                   }}
                 >
                   <input
