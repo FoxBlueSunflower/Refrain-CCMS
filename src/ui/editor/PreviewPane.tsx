@@ -4,6 +4,7 @@ import { annotateConditionBlocks } from '../../core/builder/conditions'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
 import { resolveDocument } from '../../core/resolver/resolve'
 import type { ResolveContext } from '../../core/resolver/types'
+import { findNestingViolations } from '../../core/validator/nesting'
 import { isExternalHref, resolveRelativeDocLink } from '../../core/workspace/paths'
 
 interface PreviewPaneProps {
@@ -20,6 +21,14 @@ export function PreviewPane({ text, currentRelPath, onNavigate, resolveContext }
   const annotatedBody = useMemo(() => annotateConditionBlocks(parsed.body), [parsed.body])
   const resolved = useMemo(() => resolveDocument(annotatedBody, resolveContext), [annotatedBody, resolveContext])
   const html = useMemo(() => marked.parse(resolved.text, { async: false }), [resolved.text])
+  // A single mistake (e.g. one condition fence nested in a blockquote) can
+  // produce more than one NestingViolation — one per fence line, so the
+  // editor highlights both — but the banner is a summary of distinct
+  // problems, so duplicate messages collapse to one line here.
+  const nestingMessages = useMemo(
+    () => [...new Set(findNestingViolations(parsed.body, resolveContext).map((v) => v.message))],
+    [parsed.body, resolveContext],
+  )
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {
     const anchor = (event.target as HTMLElement).closest('a')
@@ -50,6 +59,13 @@ export function PreviewPane({ text, currentRelPath, onNavigate, resolveContext }
 
   return (
     <div className="h-full overflow-auto bg-white p-4 text-gray-900" onClick={handleClick}>
+      {nestingMessages.length > 0 && (
+        <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+          {nestingMessages.map((message) => (
+            <p key={message}>{message}</p>
+          ))}
+        </div>
+      )}
       {warnings.length > 0 && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
           {warnings.map((warning) => (

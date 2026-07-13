@@ -5,7 +5,7 @@
  * unit-testable on its own; CodeMirrorEditor.tsx wires the result into a
  * single view.dispatch.
  */
-import { buildFenceWrap, lineEnd, lineStart, type TextEdit } from './textBlocks'
+import { ambientBlockquotePrefix, buildFenceWrap, lineEnd, lineStart, type TextEdit } from './textBlocks'
 
 export type BlockInsertion = TextEdit
 
@@ -20,13 +20,44 @@ export type BlockAction =
   | 'subheading'
   | 'space'
 
-/** Prefixes every line touched by `[from, to)` (snapped outward to whole lines) with `makePrefix(lineIndex)`. */
+const TABLE_ROW = /^\s*\|.*\|\s*$/
+
+/**
+ * True when any line touched by `[from, to)` (snapped outward to whole
+ * lines, matching how every block-insert action treats its range) is
+ * shaped like a GFM table row. There's no valid form of any block-insert
+ * action inside a table cell — a GFM cell is a single physical line, so
+ * every one of them (list, blockquote, code block, table, heading, hr,
+ * space) would corrupt the table — so callers use this to refuse the
+ * action outright rather than let it happen and flag the result afterward.
+ */
+export function touchesTableRow(doc: string, from: number, to: number): boolean {
+  const snappedFrom = lineStart(doc, from)
+  const snappedTo = lineEnd(doc, Math.max(to, from))
+  const selected = doc.slice(snappedFrom, snappedTo)
+  return selected.split('\n').some((line) => TABLE_ROW.test(line))
+}
+
+/**
+ * Prefixes every line touched by `[from, to)` (snapped outward to whole
+ * lines) with `makePrefix(lineIndex)`. If the line containing `from` is
+ * already inside a blockquote, that "> " marker is preserved in front of
+ * the new prefix on every line (so e.g. inserting a bulleted list from
+ * inside a blockquote nests the list in the quote — "> - item" — instead of
+ * terminating it) rather than being duplicated or dropped.
+ */
 function applyLinePrefix(doc: string, from: number, to: number, makePrefix: (lineIndex: number) => string): BlockInsertion {
   const snappedFrom = lineStart(doc, from)
   const snappedTo = lineEnd(doc, to)
   const selected = doc.slice(snappedFrom, snappedTo)
   const lines = selected.split('\n')
-  const insertText = lines.map((line, i) => `${makePrefix(i)}${line}`).join('\n')
+  const quotePrefix = ambientBlockquotePrefix(doc, from)
+  const insertText = lines
+    .map((line, i) => {
+      const content = quotePrefix && line.startsWith(quotePrefix) ? line.slice(quotePrefix.length) : line
+      return `${quotePrefix}${makePrefix(i)}${content}`
+    })
+    .join('\n')
   return { from: snappedFrom, to: snappedTo, insertText, cursorPos: insertText.length }
 }
 
@@ -60,10 +91,14 @@ export function buildSubheadingInsertion(doc: string, from: number): BlockInsert
  * Inserts a fixed 2-column GFM table template at `from`, discarding any
  * selected text. Reuses the same blank-line-padding logic as
  * `buildHorizontalRuleInsertion` so the table doesn't merge into an
- * adjacent paragraph line.
+ * adjacent paragraph line. Each template row is prefixed with an ambient
+ * blockquote marker, if `from` sits inside one, so the table nests in the
+ * quote instead of terminating it.
  */
 export function buildTableInsertion(doc: string, from: number, to: number): BlockInsertion {
-  const template = ['| Column 1 | Column 2 |', '| --- | --- |', '| Cell 1 | Cell 2 |'].join('\n')
+  const quotePrefix = ambientBlockquotePrefix(doc, from)
+  const templateLines = ['| Column 1 | Column 2 |', '| --- | --- |', '| Cell 1 | Cell 2 |']
+  const template = (quotePrefix ? templateLines.map((line) => `${quotePrefix}${line}`) : templateLines).join('\n')
   const before = doc.slice(0, from)
   const leading = before.length === 0 || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n'
   const after = doc.slice(to)
@@ -76,8 +111,31 @@ export function buildBlockquoteInsertion(doc: string, from: number, to: number):
   return applyLinePrefix(doc, from, to, () => '> ')
 }
 
+/**
+ * Wraps the selection in backtick fences. When `from` sits inside an active
+ * blockquote, every line of the result (fence markers, blank scaffold body,
+ * and any already-quoted selected lines) is prefixed with that blockquote's
+ * "> " marker so the code block nests inside the quote instead of ending it
+ * — deliberately not shared with `buildConditionInsertion`
+ * (src/ui/editor/conditionEditing.ts), which also calls `buildFenceWrap`:
+ * conditions are never allowed to nest inside a blockquote (flagged by the
+ * nesting validator instead), so that caller is intentionally left unprefixed.
+ */
 export function buildCodeBlockInsertion(doc: string, from: number, to: number): BlockInsertion {
-  return buildFenceWrap(doc, from, to, '```', '```')
+  const quotePrefix = ambientBlockquotePrefix(doc, from)
+  if (!quotePrefix) return buildFenceWrap(doc, from, to, '```', '```')
+
+  if (from === to) {
+    const insertText = `${quotePrefix}\`\`\`\n${quotePrefix}\n${quotePrefix}\`\`\`\n`
+    return { from, to, insertText, cursorPos: `${quotePrefix}\`\`\`\n`.length }
+  }
+
+  const base = buildFenceWrap(doc, from, to, '```', '```')
+  const insertText = base.insertText
+    .split('\n')
+    .map((line) => (line.startsWith(quotePrefix) ? line : `${quotePrefix}${line}`))
+    .join('\n')
+  return { ...base, insertText, cursorPos: insertText.length }
 }
 
 /**

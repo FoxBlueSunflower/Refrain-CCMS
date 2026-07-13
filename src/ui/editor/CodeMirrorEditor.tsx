@@ -9,13 +9,15 @@ import { GFM } from '@lezer/markdown'
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
 import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
-import { buildBlockInsertion, type BlockAction } from './blockEditing'
+import { useToasts } from '../notifications/ToastContext'
+import { buildBlockInsertion, touchesTableRow, type BlockAction } from './blockEditing'
 import { createConditionCompletionSource, createTokenCompletionSource, type TokenCompletionItems } from './completions'
 import { buildConditionInsertion } from './conditionEditing'
 import { createConditionHighlightPlugin } from './conditionHighlightPlugin'
 import { buildInlineInsertion, type InlineAction } from './inlineEditing'
 import { buildLinkInsertion } from './linkEditing'
 import { createMarkdownStylePlugin } from './markdownStylePlugin'
+import { createNestingValidationPlugin } from './nestingValidationPlugin'
 import { createLinkPillPlugin, createPillPlugin, refreshPillsEffect } from './pillPlugin'
 
 // Overrides CodeMirror's default light-mode link/URL color (a dark indigo,
@@ -81,6 +83,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
   { path, initialValue, onChange, onSave, completionItems, conditionsFile, resolveContext, currentRelPath, documentPaths },
   forwardedRef,
 ) {
+  const { push: pushToast } = useToasts()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -148,7 +151,13 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
       const view = viewRef.current
       if (!view) return
       const { from, to } = view.state.selection.main
-      const result = buildBlockInsertion(view.state.doc.toString(), from, to, action)
+      const doc = view.state.doc.toString()
+      if (touchesTableRow(doc, from, to)) {
+        pushToast({ kind: 'info', message: "Block content can't be inserted inside a table cell — a table row has to stay on one line." })
+        view.focus()
+        return
+      }
+      const result = buildBlockInsertion(doc, from, to, action)
       view.dispatch({
         changes: { from: result.from, to: result.to, insert: result.insertText },
         selection: { anchor: result.from + result.cursorPos },
@@ -197,6 +206,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
         createPillPlugin(() => resolveContextRef.current),
         createLinkPillPlugin(() => ({ currentRelPath: currentRelPathRef.current, documentPaths: documentPathsRef.current })),
         createConditionHighlightPlugin(),
+        createNestingValidationPlugin(() => resolveContextRef.current),
         createMarkdownStylePlugin(),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
@@ -244,6 +254,16 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
           },
           '.rf-pill-broken': { backgroundColor: '#450a0a', color: '#fca5a5', border: '1px dashed #b91c1c' },
           '.rf-pill-condition': { backgroundColor: '#1f2937', color: '#e5e7eb', border: '1px solid #4b5563' },
+          // Disallowed nesting (nestingValidationPlugin.ts): a red wavy
+          // underline on raw text, distinct from the dashed-border
+          // `.rf-pill-broken` pill style — this marks an error on text that
+          // must stay visible/editable, not a collapsed token.
+          '.rf-nesting-error': {
+            textDecorationLine: 'underline',
+            textDecorationStyle: 'wavy',
+            textDecorationColor: '#f87171',
+            textUnderlineOffset: '3px',
+          },
           // Phase 8e: ":::when dimension=value ... :::" block highlight. Fence
           // lines collapse to a small "dimension=value" pill (raw ":::"
           // syntax hidden) until the cursor/selection is inside the block;

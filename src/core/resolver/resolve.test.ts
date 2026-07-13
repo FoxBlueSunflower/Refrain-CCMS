@@ -132,4 +132,20 @@ describe('resolveDocument', () => {
       { type: 'missing-variable', key: 'second_missing', message: expect.any(String) },
     ])
   })
+
+  it('leaves {{key}}/{{> name}} syntax shown as a documentation example inside a fenced code block untouched', () => {
+    const text = ['Here is an example:', '```', 'Say {{product_name}} and {{> some-snippet}}.', '```'].join('\n')
+    const result = resolveDocument(text, ctx())
+    expect(result.warnings).toEqual([])
+    expect(result.text).toBe(text)
+  })
+
+  it('still resolves tokens outside the fence in the same document', () => {
+    const text = ['Welcome to {{product_name}}.', '```', 'Say {{product_name}}.', '```', 'Also {{product_name}}.'].join('\n')
+    const result = resolveDocument(text, ctx())
+    expect(result.warnings).toEqual([])
+    const occurrences = result.text.split('>AcmeCloud<').length - 1
+    expect(occurrences).toBe(2)
+    expect(result.text).toContain('Say {{product_name}}.')
+  })
 })

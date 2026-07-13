@@ -4,6 +4,7 @@ import { flattenPublication } from '../publications/flatten'
 import type { Publication, PublicationNode } from '../publications/types'
 import { resolveDocument } from '../resolver/resolve'
 import type { SnippetSource } from '../resolver/types'
+import { findNestingViolations } from '../validator/nesting'
 import { DOCS_DIR, PUBLICATIONS_DIR } from '../workspace/constants'
 import { relativePath } from '../workspace/paths'
 import type { ConditionsFile, PublishProfile, VariablesFile } from '../workspace/types'
@@ -14,6 +15,7 @@ import { createLinkRewritingRenderer } from './site'
 import { escapeHtml, renderPage } from './html-template'
 import type { NavNode } from './nav'
 import { shiftHeadingLevels } from './headingShift'
+import { nestingViolationsToBuildWarnings } from './nestingWarnings'
 import { substituteTitleVariables } from './titleSubstitution'
 import type { BuildWarning, BuiltFile, PublishResult } from './types'
 
@@ -162,6 +164,10 @@ export function buildPublication(input: PublicationBuildInput): PublishResult {
 
     const conditionResult = filterConditions(document.text, document.path, profile, conditionsFile)
     warnings.push(...conditionResult.warnings)
+
+    // Runs on the raw, pre-filter body — see the matching comment in site.ts.
+    const rawBody = parseFrontmatter(document.text).body
+    warnings.push(...nestingViolationsToBuildWarnings(findNestingViolations(rawBody, { variables, snippets }), document.path))
 
     const { frontmatter, body, warnings: fmWarnings } = parseFrontmatter(conditionResult.text)
     for (const message of fmWarnings) warnings.push({ type: 'frontmatter', file: document.path, message })

@@ -1,4 +1,5 @@
 import { parseFrontmatter } from '../frontmatter/parse'
+import { computeFencedLines } from '../markdown/fences'
 import { createTokenPattern } from './tokens'
 import type { ResolveContext, ResolveResult, ResolverWarning } from './types'
 
@@ -61,11 +62,40 @@ function resolveSnippetRef(
   return resolveBody(body, ctx, [...ancestors, name], depth + 1, warnings)
 }
 
-function resolveBody(body: string, ctx: ResolveContext, ancestors: readonly string[], depth: number, warnings: ResolverWarning[]): string {
-  return body.replace(createTokenPattern(), (_match, marker: string | undefined, key: string) => {
+function substituteTokens(text: string, ctx: ResolveContext, ancestors: readonly string[], depth: number, warnings: ResolverWarning[]): string {
+  return text.replace(createTokenPattern(), (_match, marker: string | undefined, key: string) => {
     if (marker === '>') return resolveSnippetRef(key, ctx, ancestors, depth, warnings)
     return resolveVariableRef(key, ctx, warnings)
   })
+}
+
+/**
+ * A `{{key}}`/`{{> name}}` shown literally inside a fenced code block (e.g.
+ * documenting this app's own syntax) is never substituted — only the
+ * non-fenced segments of `body` are passed through `substituteTokens`. The
+ * common case (no fence at all) takes a single-pass shortcut so ordinary
+ * documents keep their original line endings untouched; splitting into
+ * segments (only once a fence is present) normalizes line breaks to "\n",
+ * matching this codebase's existing precedent in conditions.ts.
+ */
+function resolveBody(body: string, ctx: ResolveContext, ancestors: readonly string[], depth: number, warnings: ResolverWarning[]): string {
+  const lines = body.split(/\r\n|\n/)
+  const fenced = computeFencedLines(lines)
+  if (!fenced.some(Boolean)) {
+    return substituteTokens(body, ctx, ancestors, depth, warnings)
+  }
+
+  const segments: string[] = []
+  let i = 0
+  while (i < lines.length) {
+    const isFenced = fenced[i]
+    let j = i
+    while (j < lines.length && fenced[j] === isFenced) j++
+    const segment = lines.slice(i, j).join('\n')
+    segments.push(isFenced ? segment : substituteTokens(segment, ctx, ancestors, depth, warnings))
+    i = j
+  }
+  return segments.join('\n')
 }
 
 /**

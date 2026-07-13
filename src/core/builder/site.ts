@@ -1,6 +1,7 @@
 import { Marked, Renderer, type Tokens } from 'marked'
 import { parseFrontmatter } from '../frontmatter/parse'
 import { resolveDocument } from '../resolver/resolve'
+import { findNestingViolations } from '../validator/nesting'
 import { DOCS_DIR } from '../workspace/constants'
 import { relativePath, resolveRelativeDocLink } from '../workspace/paths'
 import type { DocTreeNode } from '../workspace/types'
@@ -8,6 +9,7 @@ import { filterConditions } from './conditions'
 import { buildHomePage } from './home-page'
 import { buildNav, docPathToOutputPath } from './nav'
 import { renderPage } from './html-template'
+import { nestingViolationsToBuildWarnings } from './nestingWarnings'
 import { substituteTitleVariables } from './titleSubstitution'
 import type { BuildWarning, BuiltFile, PublishInput, PublishResult } from './types'
 
@@ -66,6 +68,13 @@ export function buildSite(input: PublishInput): PublishResult {
 
     const conditionResult = filterConditions(document.text, filePath, profile, conditionsFile)
     warnings.push(...conditionResult.warnings)
+
+    // Runs on the raw, pre-filter body (not conditionResult.text) so a
+    // condition nested inside another condition/blockquote/list-item/table
+    // cell is still detectable — filterConditions has already mangled that
+    // pattern beyond recognition by the time its own output is available.
+    const rawBody = parseFrontmatter(document.text).body
+    warnings.push(...nestingViolationsToBuildWarnings(findNestingViolations(rawBody, { variables, snippets }), filePath))
 
     const { frontmatter, body, warnings: fmWarnings } = parseFrontmatter(conditionResult.text)
     for (const message of fmWarnings) warnings.push({ type: 'frontmatter', file: filePath, message })

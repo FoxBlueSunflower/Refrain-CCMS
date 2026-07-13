@@ -1,13 +1,14 @@
+import { computeFencedLines } from '../markdown/fences'
 import type { ConditionsFile, PublishProfile } from '../workspace/types'
 import type { BuildWarning } from './types'
 
 const OPEN_PATTERN = /^:::when\s+([A-Za-z0-9_-]+)=([A-Za-z0-9_-]+)\s*$/
 const CLOSE_PATTERN = /^:::\s*$/
 
-/** Scans forward from `fromIndex` for the next bare ":::" close fence, or -1 if none is found before EOF. */
-function findCloseFence(lines: string[], fromIndex: number): number {
+/** Scans forward from `fromIndex` for the next bare ":::" close fence, or -1 if none is found before EOF. Lines inside a fenced code block are skipped — a literal ":::" shown as a documentation example can't accidentally close a real block. */
+function findCloseFence(lines: string[], fromIndex: number, fenced: readonly boolean[]): number {
   for (let j = fromIndex; j < lines.length; j++) {
-    if (CLOSE_PATTERN.test(lines[j].trim())) return j
+    if (!fenced[j] && CLOSE_PATTERN.test(lines[j].trim())) return j
   }
   return -1
 }
@@ -32,12 +33,15 @@ export function filterConditions(
   conditionsFile: ConditionsFile,
 ): { text: string; warnings: BuildWarning[] } {
   const lines = text.split(/\r\n|\n/)
+  const fenced = computeFencedLines(lines)
   const warnings: BuildWarning[] = []
   const output: string[] = []
 
   let i = 0
   while (i < lines.length) {
-    const openMatch = OPEN_PATTERN.exec(lines[i].trim())
+    // A ":::when"-looking line inside a fenced code block is a literal
+    // documentation example, not a real condition tag — never filtered.
+    const openMatch = fenced[i] ? null : OPEN_PATTERN.exec(lines[i].trim())
     if (!openMatch) {
       output.push(lines[i])
       i += 1
@@ -46,7 +50,7 @@ export function filterConditions(
 
     const [, dimension, value] = openMatch
     const openLine = i + 1
-    const closeIndex = findCloseFence(lines, i + 1)
+    const closeIndex = findCloseFence(lines, i + 1, fenced)
 
     if (closeIndex === -1) {
       warnings.push({
@@ -109,18 +113,19 @@ export interface ConditionBlockRange {
  */
 export function findConditionBlocks(text: string): ConditionBlockRange[] {
   const lines = text.split(/\r\n|\n/)
+  const fenced = computeFencedLines(lines)
   const blocks: ConditionBlockRange[] = []
 
   let i = 0
   while (i < lines.length) {
-    const openMatch = OPEN_PATTERN.exec(lines[i].trim())
+    const openMatch = fenced[i] ? null : OPEN_PATTERN.exec(lines[i].trim())
     if (!openMatch) {
       i += 1
       continue
     }
 
     const [, dimension, value] = openMatch
-    const closeIndex = findCloseFence(lines, i + 1)
+    const closeIndex = findCloseFence(lines, i + 1, fenced)
     if (closeIndex === -1) {
       i += 1
       continue
@@ -159,11 +164,12 @@ function escapeAttr(value: string): string {
  */
 export function annotateConditionBlocks(body: string): string {
   const lines = body.split(/\r\n|\n/)
+  const fenced = computeFencedLines(lines)
   const output: string[] = []
 
   let i = 0
   while (i < lines.length) {
-    const openMatch = OPEN_PATTERN.exec(lines[i].trim())
+    const openMatch = fenced[i] ? null : OPEN_PATTERN.exec(lines[i].trim())
     if (!openMatch) {
       output.push(lines[i])
       i += 1
@@ -171,7 +177,7 @@ export function annotateConditionBlocks(body: string): string {
     }
 
     const [, dimension, value] = openMatch
-    const closeIndex = findCloseFence(lines, i + 1)
+    const closeIndex = findCloseFence(lines, i + 1, fenced)
     if (closeIndex === -1) {
       output.push(lines[i])
       i += 1
