@@ -162,7 +162,9 @@ includes it (Phase 9)
   "nodes": [
     { "type": "heading", "title": "Getting Started" },
     { "type": "doc", "ref": "docs/getting-started.md" },
-    { "type": "doc", "ref": "docs/guides/installation.md" },
+    { "type": "doc", "ref": "docs/guides/installation.md", "children": [
+      { "type": "doc", "ref": "docs/guides/uninstall.md" }
+    ] },
     { "type": "heading", "title": "Reference", "children": [
       { "type": "doc", "ref": "docs/faq.md" }
     ] }
@@ -174,7 +176,11 @@ time from each node's depth in the tree (Phase 9c), after condition-tag
 filtering removes any excluded branches. A `doc` node's single H1 (see the
 heading-normalization rule below) becomes that node's title at whatever
 level its position implies; the doc's own internal H2-H6 body headings
-shift down to stay correctly nested beneath it.
+shift down to stay correctly nested beneath it. A `doc` node may itself
+carry `children` (sub-docs and/or sub-headings nested beneath it) — a
+heading isn't required as scaffolding just to nest something under a doc;
+`heading` remains the only node kind that's structural-only (no content of
+its own).
 
 **Heading normalization (applies to every document):** a document has
 exactly one H1 — its title, the same string as its frontmatter `title`

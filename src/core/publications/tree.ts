@@ -6,7 +6,8 @@ export function collectDocRefs(nodes: PublicationNode[]): string[] {
   for (const node of nodes) {
     if (node.type === 'doc') {
       refs.push(node.ref)
-    } else if (node.children) {
+    }
+    if (node.children) {
       refs.push(...collectDocRefs(node.children))
     }
   }
@@ -18,7 +19,7 @@ export function countNodes(nodes: PublicationNode[]): number {
   let count = 0
   for (const node of nodes) {
     count += 1
-    if (node.type === 'heading' && node.children) count += countNodes(node.children)
+    if (node.children) count += countNodes(node.children)
   }
   return count
 }

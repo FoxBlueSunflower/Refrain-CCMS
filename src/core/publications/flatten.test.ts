@@ -54,6 +54,21 @@ describe('flattenPublication', () => {
     expect(flat[6]).toEqual({ type: 'doc', level: 6, ref: 'docs/deep.md', levelClamped: true })
   })
 
+  it('nests children under a doc at depth + 1, same as under a heading', () => {
+    const nodes: PublicationNode[] = [
+      {
+        type: 'doc',
+        ref: 'docs/guides/installation.md',
+        children: [{ type: 'doc', ref: 'docs/guides/uninstall.md' }],
+      },
+    ]
+    const flat = flattenPublication(nodes)
+    expect(flat).toEqual([
+      { type: 'doc', level: 1, ref: 'docs/guides/installation.md', levelClamped: false },
+      { type: 'doc', level: 2, ref: 'docs/guides/uninstall.md', levelClamped: false },
+    ])
+  })
+
   it('gives mixed doc/heading siblings at the same depth the same level', () => {
     const nodes: PublicationNode[] = [
       {

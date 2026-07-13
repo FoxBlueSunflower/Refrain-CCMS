@@ -1,13 +1,13 @@
-import type { PublicationHeadingNode, PublicationNode } from './types'
+import type { PublicationNode } from './types'
 
-/** Indices from the root array, descending through `heading.children`. `[2, 0]` = first child of the third root node. */
+/** Indices from the root array, descending through a node's `children`. `[2, 0]` = first child of the third root node. */
 export type NodePath = number[]
 
 function childrenOf(node: PublicationNode): PublicationNode[] {
-  return node.type === 'heading' ? (node.children ?? []) : []
+  return node.children ?? []
 }
 
-function withChildren(node: PublicationHeadingNode, children: PublicationNode[]): PublicationHeadingNode {
+function withChildren(node: PublicationNode, children: PublicationNode[]): PublicationNode {
   return { ...node, children }
 }
 
@@ -32,15 +32,14 @@ export function removeNode(nodes: PublicationNode[], path: NodePath): Publicatio
     return [...nodes.slice(0, index), ...nodes.slice(index + 1)]
   }
 
-  if (node.type !== 'heading') return nodes
   const nextChildren = removeNode(childrenOf(node), rest)
   return [...nodes.slice(0, index), withChildren(node, nextChildren), ...nodes.slice(index + 1)]
 }
 
 /**
  * Inserts `node` at `index` within the array addressed by `parentPath` (`[]`
- * means the root array). No-op if `parentPath` doesn't resolve to a heading
- * node (or isn't the root) — a `doc` node can't hold children.
+ * means the root array). No-op if `parentPath` doesn't resolve to a node —
+ * both `doc` and `heading` nodes can hold children.
  */
 export function insertNode(
   nodes: PublicationNode[],
@@ -58,14 +57,12 @@ export function insertNode(
   if (!target) return nodes
 
   if (rest.length === 0) {
-    if (target.type !== 'heading') return nodes
     const children = childrenOf(target)
     const clamped = Math.max(0, Math.min(index, children.length))
     const nextChildren = [...children.slice(0, clamped), node, ...children.slice(clamped)]
     return [...nodes.slice(0, head), withChildren(target, nextChildren), ...nodes.slice(head + 1)]
   }
 
-  if (target.type !== 'heading') return nodes
   const nextChildren = insertNode(childrenOf(target), rest, index, node)
   return [...nodes.slice(0, head), withChildren(target, nextChildren), ...nodes.slice(head + 1)]
 }
@@ -129,14 +126,14 @@ function replaceChildrenAt(nodes: PublicationNode[], parentPath: NodePath, child
   if (parentPath.length === 0) return children
   const [index, ...rest] = parentPath
   const node = nodes[index]
-  if (!node || node.type !== 'heading') return nodes
+  if (!node) return nodes
   if (rest.length === 0) {
     return [...nodes.slice(0, index), withChildren(node, children), ...nodes.slice(index + 1)]
   }
   return [...nodes.slice(0, index), withChildren(node, replaceChildrenAt(childrenOf(node), rest, children)), ...nodes.slice(index + 1)]
 }
 
-/** Renames the heading node at `path`. No-op if the path doesn't resolve to a heading node. */
+/** Renames the heading node at `path`. No-op if the path resolves to a `doc` node (docs have no `title` to rename). */
 export function renameHeading(nodes: PublicationNode[], path: NodePath, title: string): PublicationNode[] {
   if (path.length === 0) return nodes
   const [index, ...rest] = path
@@ -148,15 +145,14 @@ export function renameHeading(nodes: PublicationNode[], path: NodePath, title: s
     return [...nodes.slice(0, index), { ...node, title }, ...nodes.slice(index + 1)]
   }
 
-  if (node.type !== 'heading') return nodes
   const nextChildren = renameHeading(childrenOf(node), rest, title)
   return [...nodes.slice(0, index), withChildren(node, nextChildren), ...nodes.slice(index + 1)]
 }
 
 /**
  * Reparents the node at `path` to become the last child of its immediately
- * preceding sibling. No-op if there is no preceding sibling, or it isn't a
- * `heading` node (a `doc` node can't hold children).
+ * preceding sibling. No-op if there is no preceding sibling — both `doc`
+ * and `heading` siblings can hold children.
  */
 export function indentNode(nodes: PublicationNode[], path: NodePath): PublicationNode[] {
   const index = path[path.length - 1]
@@ -164,7 +160,7 @@ export function indentNode(nodes: PublicationNode[], path: NodePath): Publicatio
   const parentPath = path.slice(0, -1)
   const siblings = parentPath.length === 0 ? nodes : childrenOf(getNodeAt(nodes, parentPath)!)
   const prevSibling = siblings[index - 1]
-  if (!prevSibling || prevSibling.type !== 'heading') return nodes
+  if (!prevSibling) return nodes
   const toParentPath = [...parentPath, index - 1]
   const toIndex = childrenOf(prevSibling).length
   return moveNode(nodes, path, toParentPath, toIndex)

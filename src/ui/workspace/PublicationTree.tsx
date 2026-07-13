@@ -27,9 +27,9 @@ function relativeY(event: DragEvent<HTMLElement>): number {
   return (event.clientY - rect.top) / rect.height
 }
 
-function computeZone(event: DragEvent<HTMLElement>, allowInto: boolean): 'before' | 'after' | 'into' {
+function computeZone(event: DragEvent<HTMLElement>): 'before' | 'after' | 'into' {
   const y = relativeY(event)
-  if (allowInto && y > 0.25 && y < 0.75) return 'into'
+  if (y > 0.25 && y < 0.75) return 'into'
   return y < 0.5 ? 'before' : 'after'
 }
 
@@ -76,12 +76,12 @@ function RowList({
     return 'bg-violet-900/40'
   }
 
-  function handleDragOver(path: NodePath, allowInto: boolean) {
+  function handleDragOver(path: NodePath) {
     return (event: DragEvent<HTMLLIElement>) => {
       if (!dragging) return
       event.preventDefault()
       event.stopPropagation()
-      setDropIndicator({ path, position: computeZone(event, allowInto) })
+      setDropIndicator({ path, position: computeZone(event) })
     }
   }
 
@@ -92,14 +92,14 @@ function RowList({
     }
   }
 
-  function handleDrop(node: PublicationNode, path: NodePath, index: number, allowInto: boolean) {
+  function handleDrop(node: PublicationNode, path: NodePath, index: number) {
     return (event: DragEvent<HTMLLIElement>) => {
       event.preventDefault()
       event.stopPropagation()
       if (!dragging) return
-      const zone = computeZone(event, allowInto)
+      const zone = computeZone(event)
       if (zone === 'into') {
-        const childCount = node.type === 'heading' ? (node.children?.length ?? 0) : 0
+        const childCount = node.children?.length ?? 0
         onMove(dragging.path, path, childCount)
       } else {
         const targetIndex = zone === 'after' ? index + 1 : index
@@ -114,9 +114,9 @@ function RowList({
       {nodes.map((node, index) => {
         const path = [...parentPath, index]
         const isHeading = node.type === 'heading'
-        const children = isHeading ? node.children ?? [] : []
+        const children = node.children ?? []
         const canOutdent = depth > 0
-        const canIndent = index > 0 && nodes[index - 1].type === 'heading'
+        const canIndent = index > 0
 
         return (
           <li
@@ -129,9 +129,9 @@ function RowList({
               setDragging({ path })
             }}
             onDragEnd={endDrag}
-            onDragOver={handleDragOver(path, isHeading)}
+            onDragOver={handleDragOver(path)}
             onDragLeave={handleDragLeave(path)}
-            onDrop={handleDrop(node, path, index, isHeading)}
+            onDrop={handleDrop(node, path, index)}
             className={indicatorClassFor(path)}
           >
             <div className="group flex items-center gap-1 rounded px-1 py-0.5 hover:bg-gray-700/50">
@@ -152,26 +152,22 @@ function RowList({
               )}
 
               <span className="hidden shrink-0 items-center gap-1 group-hover:flex">
-                {isHeading && (
-                  <>
-                    <button
-                      type="button"
-                      className="rounded px-1 text-xs text-gray-400 hover:bg-gray-600 hover:text-gray-100"
-                      title="Add heading here"
-                      onClick={() => onAddHeadingUnder(path)}
-                    >
-                      +H
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded px-1 text-xs text-gray-400 hover:bg-gray-600 hover:text-gray-100"
-                      title="Add document here"
-                      onClick={() => onAddDocUnder(path)}
-                    >
-                      +Doc
-                    </button>
-                  </>
-                )}
+                <button
+                  type="button"
+                  className="rounded px-1 text-xs text-gray-400 hover:bg-gray-600 hover:text-gray-100"
+                  title="Add heading here"
+                  onClick={() => onAddHeadingUnder(path)}
+                >
+                  +H
+                </button>
+                <button
+                  type="button"
+                  className="rounded px-1 text-xs text-gray-400 hover:bg-gray-600 hover:text-gray-100"
+                  title="Add document here"
+                  onClick={() => onAddDocUnder(path)}
+                >
+                  +Doc
+                </button>
                 <button
                   type="button"
                   className="rounded px-1 text-xs text-gray-400 hover:bg-gray-600 hover:text-gray-100 disabled:opacity-30"
@@ -202,7 +198,7 @@ function RowList({
               </span>
             </div>
 
-            {isHeading && children.length > 0 && (
+            {children.length > 0 && (
               <RowList
                 nodes={children}
                 depth={depth + 1}

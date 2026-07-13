@@ -33,7 +33,7 @@ interface PublicationsPanelProps {
 function appendIndex(nodes: PublicationNode[], parentPath: NodePath): number {
   if (parentPath.length === 0) return nodes.length
   const parent = getNodeAt(nodes, parentPath)
-  return parent && parent.type === 'heading' ? (parent.children?.length ?? 0) : 0
+  return parent ? (parent.children?.length ?? 0) : 0
 }
 
 export function PublicationsPanel({
@@ -173,7 +173,7 @@ export function PublicationsPanel({
                       onIndent={(path) => onEditPublication((nodes) => indentNode(nodes, path))}
                       onOutdent={(path) => onEditPublication((nodes) => outdentNode(nodes, path))}
                       onRequestRemove={(path, node) => {
-                        const hasChildren = node.type === 'heading' && (node.children?.length ?? 0) > 0
+                        const hasChildren = (node.children?.length ?? 0) > 0
                         if (hasChildren) {
                           setRemoveTarget({ path, node })
                         } else {
@@ -346,8 +346,8 @@ export function PublicationsPanel({
 
       {removeTarget && (
         <ConfirmDialog
-          title="Remove this heading?"
-          message="This removes the heading and everything nested under it from this publication's structure. The documents themselves are untouched — only this publication's tree changes."
+          title={removeTarget.node.type === 'heading' ? 'Remove this heading?' : 'Remove this document?'}
+          message="This removes it and everything nested under it from this publication's structure. The documents themselves are untouched — only this publication's tree changes."
           confirmLabel="Remove"
           onConfirm={() => {
             const path = removeTarget.path

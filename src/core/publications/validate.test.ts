@@ -93,4 +93,36 @@ describe('validatePublication', () => {
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.value.nodes[0]).toEqual({ type: 'heading', title: 'H' })
   })
+
+  it('accepts a doc node with a children array', () => {
+    const result = validatePublication({
+      title: 'X',
+      nodes: [{ type: 'doc', ref: 'docs/a.md', children: [{ type: 'doc', ref: 'docs/b.md' }] }],
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.nodes[0]).toEqual({
+        type: 'doc',
+        ref: 'docs/a.md',
+        children: [{ type: 'doc', ref: 'docs/b.md' }],
+      })
+    }
+  })
+
+  it('rejects malformed children on a doc node (not an array)', () => {
+    const result = validatePublication({
+      title: 'X',
+      nodes: [{ type: 'doc', ref: 'docs/a.md', children: 'not-an-array' }],
+    })
+    expect(result.ok).toBe(false)
+  })
+
+  it('rejects an invalid node nested inside a doc node\'s children', () => {
+    const result = validatePublication({
+      title: 'X',
+      nodes: [{ type: 'doc', ref: 'docs/a.md', children: [{ type: 'doc' }] }],
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.errors.some((e) => e.includes('nodes[0].children[0]'))).toBe(true)
+  })
 })
