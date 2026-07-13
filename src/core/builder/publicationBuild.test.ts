@@ -56,6 +56,9 @@ describe('buildPublication — sample workspace smoke test', () => {
     expect(file.contents).toContain('AcmeCloud')
     expect(file.contents).toContain('href="../getting-started.html"')
     expect(file.contents).not.toContain('getting-started.md"')
+
+    expect(result.homeFile.path).toBe('index.html')
+    expect(result.homeFile.contents).toContain('href="content/publications/user-guide.html"')
   })
 })
 

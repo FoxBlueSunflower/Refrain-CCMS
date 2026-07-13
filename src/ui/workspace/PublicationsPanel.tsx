@@ -231,7 +231,8 @@ export function PublicationsPanel({
                 {publishResult && publishResult.path === selectedPath && (
                   <div className="mt-3 border-t border-gray-700 pt-3">
                     <p className="mb-2 text-sm text-gray-200">
-                      Published "{publishResult.profileName}" — written to publish/{publishResult.outputPath}.
+                      Published "{publishResult.profileName}" — saved {publishResult.savedAs}. Unzip it and open
+                      index.html to view the site.
                     </p>
                     {publishResult.warnings.length === 0 ? (
                       <p className="text-xs text-gray-400">No warnings.</p>

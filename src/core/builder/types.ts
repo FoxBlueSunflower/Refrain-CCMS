@@ -22,7 +22,7 @@ export interface BuildWarning {
   message: string
 }
 
-/** A generated site file, `path` relative to the publish/ root (e.g. "guides/installation.html"). */
+/** A generated site file, `path` relative to the exported zip's content/ folder (e.g. "guides/installation.html"). */
 export interface BuiltFile {
   path: string
   contents: string
@@ -40,5 +40,7 @@ export interface PublishInput {
 
 export interface PublishResult {
   files: BuiltFile[]
+  /** The Home landing page, written outside content/ at the exported zip's root. */
+  homeFile: BuiltFile
   warnings: BuildWarning[]
 }

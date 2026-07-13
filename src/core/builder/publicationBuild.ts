@@ -8,6 +8,7 @@ import { DOCS_DIR, PUBLICATIONS_DIR } from '../workspace/constants'
 import type { ConditionsFile, PublishProfile, VariablesFile } from '../workspace/types'
 import type { IndexDocument } from '../indexer/types'
 import { filterConditions } from './conditions'
+import { buildHomePage } from './home-page'
 import { createLinkRewritingRenderer } from './site'
 import { escapeHtml, renderPage } from './html-template'
 import { shiftHeadingLevels } from './headingShift'
@@ -106,5 +107,10 @@ export function buildPublication(input: PublicationBuildInput): PublishResult {
   const contents = renderPage({ siteTitle, pageTitle, bodyHtml, nav: [], searchEntries: [] })
 
   const file: BuiltFile = { path: outputPath, contents }
-  return { files: [file], warnings }
+  const homeFile = buildHomePage({
+    siteTitle,
+    nav: [{ kind: 'file', title: pageTitle, href: outputPath, active: false }],
+    searchIndex: [],
+  })
+  return { files: [file], homeFile, warnings }
 }

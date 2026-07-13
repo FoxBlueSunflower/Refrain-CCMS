@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DocTreeNode } from '../workspace/types'
-import { buildNav, docPathToOutputPath } from './nav'
+import { buildNav, docPathToOutputPath, prefixNavHrefs } from './nav'
+import type { NavNode } from './nav'
 
 const noTitles = () => ''
 
@@ -51,5 +52,27 @@ describe('buildNav', () => {
 
     const fallback = buildNav(tree, 'index.html', () => '')
     expect(fallback[0]).toMatchObject({ title: 'installation' })
+  })
+})
+
+describe('prefixNavHrefs', () => {
+  it('prepends the prefix to every file href and forces active off, recursing through folders', () => {
+    const nodes: NavNode[] = [
+      { kind: 'file', title: 'Home', href: 'index.html', active: true },
+      {
+        kind: 'folder',
+        title: 'Guides',
+        children: [{ kind: 'file', title: 'Installation', href: 'guides/installation.html', active: false }],
+      },
+    ]
+
+    expect(prefixNavHrefs(nodes, 'content')).toEqual([
+      { kind: 'file', title: 'Home', href: 'content/index.html', active: false },
+      {
+        kind: 'folder',
+        title: 'Guides',
+        children: [{ kind: 'file', title: 'Installation', href: 'content/guides/installation.html', active: false }],
+      },
+    ])
   })
 })

@@ -6,6 +6,8 @@ import { EmptyState } from '../shared/EmptyState'
 
 export interface PublishResultSummary {
   profileName: string
+  /** The filename the user chose in the save-zip dialog. */
+  savedAs: string
   warnings: BuildWarning[]
   pageCount: number
   changes: SnapshotDiff
@@ -16,6 +18,8 @@ export interface PublicationPublishResultSummary {
   path: string
   profileName: string
   outputPath: string
+  /** The filename the user chose in the save-zip dialog. */
+  savedAs: string
   warnings: BuildWarning[]
 }
 
@@ -93,8 +97,8 @@ export function PublishPanel({ profiles, publishing, result, onPublish, onClose 
           {result && (
             <div className="border-t border-gray-700 pt-3">
               <p className="mb-2 text-sm text-gray-200">
-                Published "{result.profileName}" — {result.pageCount} page{result.pageCount === 1 ? '' : 's'} written to
-                publish/. Open publish/index.html locally to view the site.
+                Published "{result.profileName}" — saved {result.savedAs} ({result.pageCount} page
+                {result.pageCount === 1 ? '' : 's'} plus a Home page). Unzip it and open index.html to view the site.
               </p>
               <p className="mb-2 text-xs text-gray-400">
                 {result.changes.added.length} added · {result.changes.updated.length} updated · {result.changes.removed.length}{' '}

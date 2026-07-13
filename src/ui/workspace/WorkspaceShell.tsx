@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildPublication } from '../../core/builder/publicationBuild'
 import { buildSite } from '../../core/builder/site'
+import { buildZipArchive } from '../../core/builder/zip'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
 import { buildWorkspaceIndex } from '../../core/indexer/build'
 import type { WorkspaceIndex } from '../../core/indexer/types'
@@ -10,27 +11,29 @@ import type { SnippetSource } from '../../core/resolver/types'
 import { renderChangelog } from '../../core/snapshots/changelog'
 import { diffSnapshotFiles } from '../../core/snapshots/diff'
 import { diffConditions, diffVariables } from '../../core/snapshots/discrepancy'
+import { formatSnapshotTimestamp } from '../../core/snapshots/naming'
 import type { ConditionDiscrepancy, PublishLogEntry, VariableDiscrepancy } from '../../core/snapshots/types'
-import { APP_DIR, PUBLICATIONS_DIR, PUBLISH_DIR } from '../../core/workspace/constants'
+import { APP_DIR, PUBLICATIONS_DIR } from '../../core/workspace/constants'
 import { slugify, withMdExtension } from '../../core/workspace/paths'
 import { defaultFrontmatterFor, seedTemplateContent, templateBaseDir } from '../../core/workspace/templates'
 import type { ConditionsFile, VariablesFile, WorkspaceConfig } from '../../core/workspace/types'
 import {
   appendPublishLogEntry,
   archiveTemplate,
-  clearDirectory,
   createFolder,
   createPublication,
   createTemplate,
   deleteEntry,
   deleteFolder,
   deletePublication,
+  ExportCancelledError,
   findUniqueFilePath,
   findUniqueFolderPath,
   listSnapshots,
   moveFile,
   moveFolder,
   pathExists,
+  pickZipSaveTarget,
   readAllDocuments,
   readAllPublicationRefs,
   readAllPublications,
@@ -53,6 +56,7 @@ import {
   snippetStemExists,
   unarchiveTemplate,
   writePublication,
+  writeFileHandleBytes,
   writeSiblingOrder,
   writeSnapshot,
   writeTextFile,
@@ -407,8 +411,17 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           profile,
           siteTitle: workspaceConfig.site.title,
         })
-        await clearDirectory(handle, PUBLISH_DIR)
-        await Promise.all(result.files.map((file) => writeTextFile(handle, `${PUBLISH_DIR}/${file.path}`, file.contents)))
+        const archive = buildZipArchive(result.homeFile, result.files)
+        const suggestedName = `${slugify(workspaceConfig.site.title)}-${profileName}-${formatSnapshotTimestamp()}.zip`
+
+        let fileHandle: FileSystemFileHandle
+        try {
+          fileHandle = await pickZipSaveTarget(suggestedName)
+        } catch (err) {
+          if (err instanceof ExportCancelledError) return
+          throw err
+        }
+        await writeFileHandleBytes(fileHandle, archive)
 
         // Diff against the previous publish's snapshot BEFORE writing the new one.
         const log = await readPublishLog(handle)
@@ -421,7 +434,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         await appendPublishLogEntry(handle, entry)
         await writeTextFile(handle, CHANGELOG_FILE, renderChangelog([...log, entry]))
 
-        setPublishResult({ profileName, warnings: result.warnings, pageCount: result.files.length, changes })
+        setPublishResult({ profileName, savedAs: fileHandle.name, warnings: result.warnings, pageCount: result.files.length, changes })
       } catch (err) {
         pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       } finally {
@@ -553,9 +566,20 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           profile,
           siteTitle: workspaceConfig.site.title,
         })
+        const archive = buildZipArchive(result.homeFile, result.files)
+        const suggestedName = `${slug}-${profileName}-${formatSnapshotTimestamp()}.zip`
+
+        let fileHandle: FileSystemFileHandle
+        try {
+          fileHandle = await pickZipSaveTarget(suggestedName)
+        } catch (err) {
+          if (err instanceof ExportCancelledError) return
+          throw err
+        }
+        await writeFileHandleBytes(fileHandle, archive)
+
         const [file] = result.files
-        await writeTextFile(handle, `${PUBLISH_DIR}/${file.path}`, file.contents)
-        setPublicationPublishResult({ path, profileName, outputPath: file.path, warnings: result.warnings })
+        setPublicationPublishResult({ path, profileName, outputPath: file.path, savedAs: fileHandle.name, warnings: result.warnings })
       } catch (err) {
         pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       } finally {

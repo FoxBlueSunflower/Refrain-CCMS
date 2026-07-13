@@ -19,7 +19,8 @@ export function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function renderNavNodes(nodes: NavNode[]): string {
+/** Exported so the Home landing page (src/core/builder/home-page.ts) can render the same nav tree as an in-page table of contents. */
+export function renderNavNodes(nodes: NavNode[]): string {
   if (nodes.length === 0) return ''
   const items = nodes
     .map((node) => {
