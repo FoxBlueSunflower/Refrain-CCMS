@@ -30,6 +30,13 @@ describe('renderPage', () => {
     expect(html).toContain('<a class="rf-nav-title" href="../index.html">Acme Docs</a>')
   })
 
+  it('gives the nav sidebar and content pane independent scroll regions', () => {
+    const html = renderPage({ siteTitle: 'Acme Docs', pageTitle: 'Home', bodyHtml: '<p>x</p>', nav: [], homeHref: 'index.html' })
+    expect(html).toMatch(/\.rf-shell\s*\{[^}]*height:\s*100vh/)
+    expect(html).toMatch(/\.rf-nav\s*\{[^}]*overflow-y:\s*auto/)
+    expect(html).toMatch(/\.rf-content\s*\{[^}]*overflow-y:\s*auto/)
+  })
+
   it('renders exactly one active nav marker at the correct href', () => {
     const html = renderPage({ siteTitle: 'Acme Docs', pageTitle: 'Installation', bodyHtml: '<p>x</p>', nav, homeHref: 'index.html' })
     const activeMatches = html.match(/class="rf-nav-active"/g) ?? []
