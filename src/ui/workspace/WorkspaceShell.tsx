@@ -447,7 +447,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
 
         const files = [...siteResult.files, ...publicationFiles]
         const archive = buildZipArchive(homeFile, files)
-        const suggestedName = `${slugify(workspaceConfig.name)}-${profileName}-${formatSnapshotTimestamp()}.zip`
+        const suggestedName = `${slugify(handle.name)}-${profileName}-${formatSnapshotTimestamp()}.zip`
 
         let fileHandle: FileSystemFileHandle
         try {

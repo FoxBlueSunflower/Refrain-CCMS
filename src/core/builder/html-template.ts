@@ -60,9 +60,10 @@ const MARKDOWN_BODY_CSS = `
 const PAGE_CSS = `
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, -apple-system, sans-serif; color: #1f2937; background: #ffffff; }
-.rf-shell { display: flex; min-height: 100vh; }
-.rf-nav { width: 260px; flex-shrink: 0; padding: 1rem; border-right: 1px solid #e5e7eb; overflow-y: auto; }
+html, body { height: 100%; margin: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; color: #1f2937; background: #ffffff; }
+.rf-shell { display: flex; height: 100vh; }
+.rf-nav { width: 260px; flex-shrink: 0; height: 100%; padding: 1rem; border-right: 1px solid #e5e7eb; overflow-y: auto; }
 .rf-nav-title { display: block; font-weight: 600; margin: 0 0 1rem; font-size: 1rem; color: inherit; text-decoration: none; }
 .rf-nav-title:hover { text-decoration: underline; }
 .rf-nav-list { list-style: none; margin: 0; padding-left: 0.75rem; }
@@ -71,12 +72,12 @@ body { margin: 0; font-family: system-ui, -apple-system, sans-serif; color: #1f2
 .rf-nav a { display: block; padding: 0.15rem 0; color: #374151; text-decoration: none; font-size: 0.9rem; }
 .rf-nav a:hover { text-decoration: underline; }
 .rf-nav a.rf-nav-active { color: #7c3aed; font-weight: 600; }
-.rf-content { flex: 1; min-width: 0; padding: 2rem; max-width: 48rem; }
+.rf-content { flex: 1; min-width: 0; height: 100%; padding: 2rem; max-width: 48rem; overflow-y: auto; }
 ${MARKDOWN_BODY_CSS}
 @media print {
   .rf-nav { display: none; }
-  .rf-shell { display: block; }
-  .rf-content { max-width: none; padding: 0; }
+  .rf-shell { display: block; height: auto; }
+  .rf-content { max-width: none; padding: 0; height: auto; overflow: visible; }
 }
 `
 
