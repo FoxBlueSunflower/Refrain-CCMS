@@ -1,10 +1,11 @@
-import { useState, type ReactElement } from 'react'
+import { useState, type ReactElement, type ReactNode } from 'react'
 import { isExternalHref } from '../../core/workspace/paths'
 import type { ConditionsFile } from '../../core/workspace/types'
 import type { BlockAction } from './blockEditing'
 import type { TokenCompletionItems } from './completions'
 import type { InlineAction } from './inlineEditing'
 import { BulletListIcon, ChecklistIcon, NumberedListIcon } from './listIcons'
+import { BlocksIcon, ConIcon, ListsIcon, SnptIcon, TxtIcon, VarGlyph } from './toolbarIcons'
 
 type MenuKey = 'txt' | 'var' | 'snpt' | 'con' | 'lists' | 'block'
 
@@ -45,21 +46,30 @@ const OTHER_BLOCK_ACTIONS: { action: BlockAction; label: string }[] = [
 ]
 
 function ToolbarButton({
-  label,
+  icon,
+  accessibleLabel,
   isOpen,
   onToggle,
 }: {
-  label: string
+  icon: ReactNode
+  accessibleLabel: string
   isOpen: boolean
   onToggle: () => void
 }) {
   return (
     <button
       type="button"
-      className={`rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700 ${isOpen ? 'bg-gray-700' : ''}`}
+      className={`flex items-center gap-1 rounded border border-gray-600 px-1.5 py-0.5 text-gray-300 hover:bg-gray-700 ${isOpen ? 'bg-gray-700' : ''}`}
       onClick={onToggle}
+      title={accessibleLabel}
+      aria-label={accessibleLabel}
+      aria-haspopup="menu"
+      aria-expanded={isOpen}
     >
-      {label} ▾
+      {icon}
+      <span className="text-[10px] text-gray-400" aria-hidden="true">
+        ▾
+      </span>
     </button>
   )
 }
@@ -162,7 +172,7 @@ export function InsertToolbar({
     <div className="flex items-center gap-2 border-b border-gray-700 bg-gray-800 px-4 py-2">
       {openMenu !== null && <div className="fixed inset-0 z-10" onClick={close} />}
       <div className="relative z-20">
-        <ToolbarButton label="Txt" isOpen={openMenu === 'txt'} onToggle={() => toggleMenu('txt')} />
+        <ToolbarButton icon={<TxtIcon />} accessibleLabel="Txt" isOpen={openMenu === 'txt'} onToggle={() => toggleMenu('txt')} />
         {openMenu === 'txt' && (
           <DropdownPanel>
             {txtView === 'menu' && (
@@ -247,7 +257,65 @@ export function InsertToolbar({
       </div>
 
       <div className="relative z-20">
-        <ToolbarButton label="Var" isOpen={openMenu === 'var'} onToggle={() => toggleMenu('var')} />
+        <ToolbarButton icon={<ListsIcon />} accessibleLabel="Lists" isOpen={openMenu === 'lists'} onToggle={() => toggleMenu('lists')} />
+        {openMenu === 'lists' && (
+          <DropdownPanel>
+            {LIST_ACTIONS.map(({ action, label, icon: Icon }) => (
+              <button
+                key={action}
+                type="button"
+                className="flex w-full items-center gap-2 truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                onClick={() => insertBlock(action)}
+              >
+                <Icon />
+                {label}
+              </button>
+            ))}
+          </DropdownPanel>
+        )}
+      </div>
+
+      <div className="relative z-20">
+        <ToolbarButton icon={<BlocksIcon />} accessibleLabel="Blocks" isOpen={openMenu === 'block'} onToggle={() => toggleMenu('block')} />
+        {openMenu === 'block' && (
+          <DropdownPanel>
+            {OTHER_BLOCK_ACTIONS.map(({ action, label }) => (
+              <button
+                key={action}
+                type="button"
+                className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                onClick={() => insertBlock(action)}
+              >
+                {label}
+              </button>
+            ))}
+          </DropdownPanel>
+        )}
+      </div>
+
+      <div className="relative z-20">
+        <ToolbarButton icon={<SnptIcon />} accessibleLabel="Snpt" isOpen={openMenu === 'snpt'} onToggle={() => toggleMenu('snpt')} />
+        {openMenu === 'snpt' && (
+          <DropdownPanel>
+            {completionItems.snippets.length === 0 && <p className="px-2 py-1 text-xs text-gray-400">No snippets yet.</p>}
+            {completionItems.snippets.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                title={s.description}
+                onClick={() => insertText(`{{> ${s.key}}}`)}
+              >
+                {`{{> ${s.key}}}`}
+                {s.description && <span className="ml-2 text-xs text-gray-400">{s.description}</span>}
+              </button>
+            ))}
+          </DropdownPanel>
+        )}
+      </div>
+
+      <div className="relative z-20">
+        <ToolbarButton icon={<VarGlyph />} accessibleLabel="Var" isOpen={openMenu === 'var'} onToggle={() => toggleMenu('var')} />
         {openMenu === 'var' && (
           <DropdownPanel>
             {completionItems.variables.length === 0 && <p className="px-2 py-1 text-xs text-gray-400">No variables yet.</p>}
@@ -276,28 +344,7 @@ export function InsertToolbar({
       </div>
 
       <div className="relative z-20">
-        <ToolbarButton label="Snpt" isOpen={openMenu === 'snpt'} onToggle={() => toggleMenu('snpt')} />
-        {openMenu === 'snpt' && (
-          <DropdownPanel>
-            {completionItems.snippets.length === 0 && <p className="px-2 py-1 text-xs text-gray-400">No snippets yet.</p>}
-            {completionItems.snippets.map((s) => (
-              <button
-                key={s.key}
-                type="button"
-                className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
-                title={s.description}
-                onClick={() => insertText(`{{> ${s.key}}}`)}
-              >
-                {`{{> ${s.key}}}`}
-                {s.description && <span className="ml-2 text-xs text-gray-400">{s.description}</span>}
-              </button>
-            ))}
-          </DropdownPanel>
-        )}
-      </div>
-
-      <div className="relative z-20">
-        <ToolbarButton label="Con" isOpen={openMenu === 'con'} onToggle={() => toggleMenu('con')} />
+        <ToolbarButton icon={<ConIcon />} accessibleLabel="Con" isOpen={openMenu === 'con'} onToggle={() => toggleMenu('con')} />
         {openMenu === 'con' && (
           <DropdownPanel>
             {!hasConditions && <p className="px-2 py-1 text-xs text-gray-400">No condition values yet.</p>}
@@ -321,43 +368,6 @@ export function InsertToolbar({
             >
               Edit conditions…
             </button>
-          </DropdownPanel>
-        )}
-      </div>
-
-      <div className="relative z-20">
-        <ToolbarButton label="Lists" isOpen={openMenu === 'lists'} onToggle={() => toggleMenu('lists')} />
-        {openMenu === 'lists' && (
-          <DropdownPanel>
-            {LIST_ACTIONS.map(({ action, label, icon: Icon }) => (
-              <button
-                key={action}
-                type="button"
-                className="flex w-full items-center gap-2 truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
-                onClick={() => insertBlock(action)}
-              >
-                <Icon />
-                {label}
-              </button>
-            ))}
-          </DropdownPanel>
-        )}
-      </div>
-
-      <div className="relative z-20">
-        <ToolbarButton label="Blocks" isOpen={openMenu === 'block'} onToggle={() => toggleMenu('block')} />
-        {openMenu === 'block' && (
-          <DropdownPanel>
-            {OTHER_BLOCK_ACTIONS.map(({ action, label }) => (
-              <button
-                key={action}
-                type="button"
-                className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
-                onClick={() => insertBlock(action)}
-              >
-                {label}
-              </button>
-            ))}
           </DropdownPanel>
         )}
       </div>

@@ -98,6 +98,45 @@ describe('buildWorkspaceIndex', () => {
     expect(index.snippetsUsedBySnippets).toEqual({})
   })
 
+  it('tracks a variable used directly by a snippet', () => {
+    const index = buildWorkspaceIndex(
+      { documents: [], snippets: [snippet('support-contact', 'Email {{support_email}}.')] },
+      BUILT_AT,
+    )
+    expect(index.variablesUsedBySnippets).toEqual({ support_email: ['support-contact'] })
+  })
+
+  it('attributes a variable used by two snippets to both', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [],
+        snippets: [snippet('a', 'Version {{version}}.'), snippet('b', 'Also {{version}}.')],
+      },
+      BUILT_AT,
+    )
+    expect(index.variablesUsedBySnippets).toEqual({ version: ['a', 'b'] })
+  })
+
+  it('leaves a variable with no snippet-level reference absent from variablesUsedBySnippets', () => {
+    const index = buildWorkspaceIndex({ documents: [], snippets: [snippet('lonely', 'No variables here.')] }, BUILT_AT)
+    expect(index.variablesUsedBySnippets).toEqual({})
+  })
+
+  it('records variablesUsedBySnippets as a one-level relationship, independent of the transitive variables walk', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [doc('docs/a.md', '{{> outer}}')],
+        snippets: [snippet('outer', '{{> inner}}'), snippet('inner', 'Version {{version}}.')],
+      },
+      BUILT_AT,
+    )
+    // The doc-level `variables` field is transitive (through outer -> inner),
+    // but variablesUsedBySnippets only attributes `version` to `inner`, the
+    // snippet whose body directly references it — not to `outer`.
+    expect(index.variables).toEqual({ version: ['docs/a.md'] })
+    expect(index.variablesUsedBySnippets).toEqual({ version: ['inner'] })
+  })
+
   it('ignores a reference to a missing snippet without crashing or fabricating an entry', () => {
     const index = buildWorkspaceIndex({ documents: [doc('docs/a.md', '{{> ghost}}')], snippets: [] }, BUILT_AT)
     expect(index.snippets).toEqual({ ghost: ['docs/a.md'] })

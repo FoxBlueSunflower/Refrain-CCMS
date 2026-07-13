@@ -5,6 +5,7 @@ import { keymap } from '@codemirror/view'
 import { markdown } from '@codemirror/lang-markdown'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
+import { GFM } from '@lezer/markdown'
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
 import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
@@ -14,6 +15,7 @@ import { buildConditionInsertion } from './conditionEditing'
 import { createConditionHighlightPlugin } from './conditionHighlightPlugin'
 import { buildInlineInsertion, type InlineAction } from './inlineEditing'
 import { buildLinkInsertion } from './linkEditing'
+import { createMarkdownStylePlugin } from './markdownStylePlugin'
 import { createLinkPillPlugin, createPillPlugin, refreshPillsEffect } from './pillPlugin'
 
 // Overrides CodeMirror's default light-mode link/URL color (a dark indigo,
@@ -184,7 +186,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
       doc: initialValue,
       extensions: [
         minimalSetup,
-        markdown(),
+        markdown({ extensions: GFM }),
         syntaxHighlighting(editorHighlightStyle),
         autocompletion({
           override: [
@@ -195,6 +197,7 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
         createPillPlugin(() => resolveContextRef.current),
         createLinkPillPlugin(() => ({ currentRelPath: currentRelPathRef.current, documentPaths: documentPathsRef.current })),
         createConditionHighlightPlugin(),
+        createMarkdownStylePlugin(),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString())
@@ -274,6 +277,26 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
             fontSize: '0.8em',
           },
           '.rf-condition-remove:hover': { backgroundColor: '#374151', color: '#f3f4f6' },
+          // Rich source rendering: bold/italic/underline/H1/H2/blockquote
+          // collapse their markdown markers until the cursor touches them
+          // (same convention as the pills/condition blocks above); tables
+          // are styled only, markup is never hidden.
+          '.rf-bold': { fontWeight: 700 },
+          '.rf-italic': { fontStyle: 'italic' },
+          '.rf-underline': { textDecoration: 'underline' },
+          '.rf-heading1': { fontSize: '1.4em', fontWeight: 700 },
+          '.rf-heading2': { fontSize: '1.2em', fontWeight: 700 },
+          '.rf-blockquote': {
+            borderLeftWidth: '3px',
+            borderLeftStyle: 'solid',
+            borderLeftColor: '#4b5563',
+            paddingLeft: '8px',
+            color: '#9ca3af',
+            fontStyle: 'italic',
+          },
+          '.rf-table-row': { backgroundColor: '#1f293733' },
+          '.rf-table-delimiter': { color: '#6b7280' },
+          '.rf-empty-line-placeholder': { color: '#6b7280', fontStyle: 'italic', cursor: 'text' },
         }),
       ],
     })
