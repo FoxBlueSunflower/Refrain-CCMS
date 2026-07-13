@@ -10,6 +10,8 @@ export interface WorkspaceIndex {
   conditions: Record<string, string[]>
   /** doc path -> publications that include it as a node (reverse direction from the three fields above). */
   documentPublications: Record<string, DocPublicationRef[]>
+  /** snippet name -> other snippet names whose body directly includes it via {{> name}} (one level; independent of whether either snippet is itself pulled into any document). */
+  snippetsUsedBySnippets: Record<string, string[]>
 }
 
 /** A publication that includes a document, as surfaced in the document's where-used results. */
