@@ -149,3 +149,83 @@ describe('resolveDocument', () => {
     expect(result.text).toContain('Say {{product_name}}.')
   })
 })
+
+describe('resolveDocument — plain mode', () => {
+  it('substitutes a known variable with its raw, unwrapped value', () => {
+    const result = resolveDocument('Welcome to {{product_name}}.', ctx({ mode: 'plain' }))
+    expect(result.warnings).toEqual([])
+    expect(result.text).toBe('Welcome to AcmeCloud.')
+    expect(result.text).not.toContain('<span')
+  })
+
+  it('does not HTML-escape a variable value in plain mode', () => {
+    const result = resolveDocument(
+      'Say {{greeting}}.',
+      ctx({ mode: 'plain', variables: { greeting: { value: '<b>Hi</b> & welcome', description: '' } } }),
+    )
+    expect(result.warnings).toEqual([])
+    expect(result.text).toBe('Say <b>Hi</b> & welcome.')
+  })
+
+  it('flags a missing variable with a bare warning notice, no span markup', () => {
+    const result = resolveDocument('Contact {{support_email}}.', ctx({ mode: 'plain' }))
+    expect(result.warnings).toEqual([{ type: 'missing-variable', key: 'support_email', message: expect.any(String) }])
+    expect(result.text).toContain('⚠')
+    expect(result.text).not.toContain('<span')
+    expect(result.text).not.toContain('rf-resolve-error')
+  })
+
+  it('flags a missing snippet with a bare warning notice, no span markup', () => {
+    const result = resolveDocument('{{> warning-banner}}', ctx({ mode: 'plain' }))
+    expect(result.warnings).toEqual([{ type: 'missing-snippet', key: 'warning-banner', message: expect.any(String) }])
+    expect(result.text).toContain('⚠')
+    expect(result.text).not.toContain('<span')
+  })
+
+  it('flags a circular include with a bare warning notice, no span markup', () => {
+    const result = resolveDocument(
+      '{{> loop}}',
+      ctx({ mode: 'plain', snippets: { loop: '---\nname: loop\n---\n\nSelf: {{> loop}}.\n' } }),
+    )
+    expect(result.warnings).toEqual([{ type: 'circular-snippet', key: 'loop', message: expect.any(String) }])
+    expect(result.text).toContain('⚠')
+    expect(result.text).not.toContain('<span')
+  })
+
+  it('flags nesting deeper than one level with a bare warning notice, no span markup', () => {
+    const result = resolveDocument(
+      '{{> a}}',
+      ctx({
+        mode: 'plain',
+        snippets: {
+          a: '---\nname: a\n---\n\n{{> b}}\n',
+          b: '---\nname: b\n---\n\n{{> c}}\n',
+          c: '---\nname: c\n---\n\nToo deep.\n',
+        },
+      }),
+    )
+    expect(result.warnings).toEqual([{ type: 'snippet-nesting-too-deep', key: 'c', message: expect.any(String) }])
+    expect(result.text).not.toContain('Too deep.')
+    expect(result.text).toContain('⚠')
+    expect(result.text).not.toContain('<span')
+  })
+
+  it('transcludes a snippet and resolves variables inside it as plain text', () => {
+    const result = resolveDocument(
+      '{{> support-contact}}',
+      ctx({
+        mode: 'plain',
+        snippets: { 'support-contact': '---\nname: support-contact\n---\n\nQuestions? Email us about {{product_name}}.\n' },
+      }),
+    )
+    expect(result.warnings).toEqual([])
+    expect(result.text.trim()).toBe('Questions? Email us about AcmeCloud.')
+  })
+
+  it('leaves {{key}}/{{> name}} syntax inside a fenced code block untouched in plain mode too', () => {
+    const text = ['Here is an example:', '```', 'Say {{product_name}} and {{> some-snippet}}.', '```'].join('\n')
+    const result = resolveDocument(text, ctx({ mode: 'plain' }))
+    expect(result.warnings).toEqual([])
+    expect(result.text).toBe(text)
+  })
+})

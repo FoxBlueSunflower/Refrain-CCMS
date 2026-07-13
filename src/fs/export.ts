@@ -32,3 +32,28 @@ export async function writeFileHandleBytes(handle: FileSystemFileHandle, data: U
   await writable.write(new Uint8Array(data))
   await writable.close()
 }
+
+/**
+ * Opens the native save-file dialog for an exported markdown file (the
+ * "Export as Markdown" action's output). Same user-gesture constraint as
+ * pickZipSaveTarget above.
+ */
+export async function pickMarkdownSaveTarget(suggestedName: string): Promise<FileSystemFileHandle> {
+  try {
+    return await window.showSaveFilePicker({
+      suggestedName,
+      types: [{ description: 'Markdown file', accept: { 'text/markdown': ['.md'] } }],
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ExportCancelledError()
+    }
+    throw error
+  }
+}
+
+export async function writeFileHandleText(handle: FileSystemFileHandle, text: string): Promise<void> {
+  const writable = await handle.createWritable()
+  await writable.write(text)
+  await writable.close()
+}

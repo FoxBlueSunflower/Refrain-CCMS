@@ -14,7 +14,13 @@ export {
   writeTextFile,
 } from './directory'
 export { readDocTree, readSnippetList } from './doc-tree'
-export { ExportCancelledError, pickZipSaveTarget, writeFileHandleBytes } from './export'
+export {
+  ExportCancelledError,
+  pickMarkdownSaveTarget,
+  pickZipSaveTarget,
+  writeFileHandleBytes,
+  writeFileHandleText,
+} from './export'
 export {
   createFolder,
   deleteFolder,

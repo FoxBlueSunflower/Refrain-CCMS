@@ -11,9 +11,13 @@ export interface ResolverWarning {
 /** Raw snippet file contents (frontmatter + body), keyed by filename stem — the identity {{> name}} refers to. */
 export type SnippetSource = Record<string, string>
 
+/** 'html' (default) wraps resolved values/errors in <span> markup for the published site; 'plain' emits bare text for the markdown export. */
+export type ResolveMode = 'html' | 'plain'
+
 export interface ResolveContext {
   variables: VariablesFile
   snippets: SnippetSource
+  mode?: ResolveMode
 }
 
 export interface ResolveResult {

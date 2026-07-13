@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildHomePage } from '../../core/builder/home-page'
+import { buildPublicationMarkdownExport, buildWorkspaceMarkdownExport } from '../../core/builder/markdownExport'
 import { buildPublication, publicationOutputPath } from '../../core/builder/publicationBuild'
 import { buildSite } from '../../core/builder/site'
 import { buildZipArchive } from '../../core/builder/zip'
@@ -34,6 +35,7 @@ import {
   moveFile,
   moveFolder,
   pathExists,
+  pickMarkdownSaveTarget,
   pickZipSaveTarget,
   readAllDocuments,
   readAllPublicationRefs,
@@ -58,6 +60,7 @@ import {
   unarchiveTemplate,
   writePublication,
   writeFileHandleBytes,
+  writeFileHandleText,
   writeSiblingOrder,
   writeSnapshot,
   writeTextFile,
@@ -77,8 +80,13 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { HistoryPanel } from './HistoryPanel'
 import { DocumentTitleDialog } from './NewDocumentDialog'
 import { ProfilesEditor, type ProfilesEditorHandle } from './ProfilesEditor'
-import { PublicationsPanel } from './PublicationsPanel'
-import { PublishPanel, type PublicationPublishResultSummary, type PublishResultSummary } from './PublishPanel'
+import { PublicationsPanel, type PublicationMarkdownExportResultSummary } from './PublicationsPanel'
+import {
+  PublishPanel,
+  type MarkdownExportResultSummary,
+  type PublicationPublishResultSummary,
+  type PublishResultSummary,
+} from './PublishPanel'
 import { Sidebar, type SiblingEntry } from './Sidebar'
 import { TemplatesPanel } from './TemplatesPanel'
 import { VariablesEditor, type VariablesEditorHandle } from './VariablesEditor'
@@ -172,6 +180,8 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   const [workspaceConfig, setWorkspaceConfig] = useState<WorkspaceConfig | null>(null)
   const [publishing, setPublishing] = useState(false)
   const [publishResult, setPublishResult] = useState<PublishResultSummary | null>(null)
+  const [exportingMarkdown, setExportingMarkdown] = useState(false)
+  const [markdownExportResult, setMarkdownExportResult] = useState<MarkdownExportResultSummary | null>(null)
 
   const [historyOpen, setHistoryOpen] = useState(false)
   const [snapshots, setSnapshots] = useState<SnapshotSummary[]>([])
@@ -196,6 +206,10 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
   const publicationSelectionRef = useRef(0)
   const [publishingPublication, setPublishingPublication] = useState(false)
   const [publicationPublishResult, setPublicationPublishResult] = useState<PublicationPublishResultSummary | null>(null)
+  const [exportingPublicationMarkdown, setExportingPublicationMarkdown] = useState(false)
+  const [publicationMarkdownExportResult, setPublicationMarkdownExportResult] = useState<PublicationMarkdownExportResultSummary | null>(
+    null,
+  )
 
   const [activePane, setActivePane] = useState<Pane>('document')
   const [openedPanes, setOpenedPanes] = useState<Set<Exclude<Pane, 'document'>>>(new Set())
@@ -479,6 +493,45 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     [handle, workspaceConfig, conditionsFile, snippets, variables, pushToast],
   )
 
+  const handleExportMarkdown = useCallback(
+    async (profileName: string) => {
+      if (!workspaceConfig) return
+      const profile = workspaceConfig.publishProfiles[profileName]
+      if (!profile) return
+
+      setExportingMarkdown(true)
+      try {
+        const [docs, docTree] = await Promise.all([readAllDocuments(handle), readDocTree(handle)])
+        const result = buildWorkspaceMarkdownExport({
+          documents: docs,
+          docTree,
+          snippets,
+          variables,
+          conditionsFile,
+          profile,
+          siteTitle: workspaceConfig.name,
+        })
+
+        const suggestedName = `${slugify(handle.name)}-${profileName}-${formatSnapshotTimestamp()}.md`
+        let fileHandle: FileSystemFileHandle
+        try {
+          fileHandle = await pickMarkdownSaveTarget(suggestedName)
+        } catch (err) {
+          if (err instanceof ExportCancelledError) return
+          throw err
+        }
+        await writeFileHandleText(fileHandle, result.text)
+
+        setMarkdownExportResult({ profileName, savedAs: fileHandle.name, warnings: result.warnings })
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      } finally {
+        setExportingMarkdown(false)
+      }
+    },
+    [handle, workspaceConfig, conditionsFile, snippets, variables, pushToast],
+  )
+
   const loadHistory = useCallback(async () => {
     try {
       const [nextSnapshots, nextLog] = await Promise.all([listSnapshots(handle), readPublishLog(handle)])
@@ -562,6 +615,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     async (path: string) => {
       setSelectedPublicationPath(path)
       setPublicationPublishResult(null)
+      setPublicationMarkdownExportResult(null)
       const token = ++publicationSelectionRef.current
       const result = await readPublication(handle, path)
       if (publicationSelectionRef.current !== token) return // a newer selection is already in flight
@@ -618,6 +672,51 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       } finally {
         setPublishingPublication(false)
+      }
+    },
+    [handle, workspaceConfig, conditionsFile, snippets, variables, pushToast],
+  )
+
+  const handleExportPublicationMarkdown = useCallback(
+    async (path: string, profileName: string) => {
+      if (!workspaceConfig) return
+      const profile = workspaceConfig.publishProfiles[profileName]
+      if (!profile) return
+
+      setExportingPublicationMarkdown(true)
+      try {
+        const [pubResult, docs] = await Promise.all([readPublication(handle, path), readAllDocuments(handle)])
+        if (!pubResult.ok) {
+          pushToast({ kind: 'error', message: pubResult.errors.join('; ') })
+          return
+        }
+        const slug = path.slice(0, -'.json'.length) // PublicationSummary.path is always "<slug>.json"
+        const result = buildPublicationMarkdownExport({
+          publication: pubResult.value,
+          sourcePath: `${PUBLICATIONS_DIR}/${path}`,
+          slug,
+          documents: docs,
+          snippets,
+          variables,
+          conditionsFile,
+          profile,
+        })
+
+        const suggestedName = `${slug}-${profileName}-${formatSnapshotTimestamp()}.md`
+        let fileHandle: FileSystemFileHandle
+        try {
+          fileHandle = await pickMarkdownSaveTarget(suggestedName)
+        } catch (err) {
+          if (err instanceof ExportCancelledError) return
+          throw err
+        }
+        await writeFileHandleText(fileHandle, result.text)
+
+        setPublicationMarkdownExportResult({ path, profileName, savedAs: fileHandle.name, warnings: result.warnings })
+      } catch (err) {
+        pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      } finally {
+        setExportingPublicationMarkdown(false)
       }
     },
     [handle, workspaceConfig, conditionsFile, snippets, variables, pushToast],
@@ -1224,7 +1323,10 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           profiles={workspaceConfig?.publishProfiles ?? {}}
           publishing={publishing}
           result={publishResult}
+          exportingMarkdown={exportingMarkdown}
+          markdownExportResult={markdownExportResult}
           onPublish={(profileName) => void handlePublish(profileName)}
+          onExportMarkdown={(profileName) => void handleExportMarkdown(profileName)}
           onClose={() => setPublishOpen(false)}
         />
       )}
@@ -1267,12 +1369,15 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           profiles={workspaceConfig?.publishProfiles ?? {}}
           publishing={publishingPublication}
           publishResult={publicationPublishResult}
+          exportingMarkdown={exportingPublicationMarkdown}
+          markdownExportResult={publicationMarkdownExportResult}
           documentPaths={documentPaths}
           onSelect={(path) => void handleSelectPublication(path)}
           onCreate={handleCreatePublication}
           onDelete={(path) => void handleDeletePublication(path)}
           onEditPublication={handleEditPublication}
           onPublish={(path, profileName) => void handlePublishPublication(path, profileName)}
+          onExportMarkdown={(path, profileName) => void handleExportPublicationMarkdown(path, profileName)}
           onClose={() => setPublicationsOpen(false)}
         />
       )}

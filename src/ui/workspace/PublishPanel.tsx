@@ -23,11 +23,22 @@ export interface PublicationPublishResultSummary {
   warnings: BuildWarning[]
 }
 
+/** Result of an "Export as Markdown" run — no snapshot/changelog/publish-log side effects, just the one saved file. */
+export interface MarkdownExportResultSummary {
+  profileName: string
+  /** The filename the user chose in the save-file dialog. */
+  savedAs: string
+  warnings: BuildWarning[]
+}
+
 interface PublishPanelProps {
   profiles: Record<string, PublishProfile>
   publishing: boolean
   result: PublishResultSummary | null
+  exportingMarkdown: boolean
+  markdownExportResult: MarkdownExportResultSummary | null
   onPublish: (profileName: string) => void
+  onExportMarkdown: (profileName: string) => void
   onClose: () => void
 }
 
@@ -36,7 +47,16 @@ export function warningLabel(warning: BuildWarning): string {
   return `${location} — ${warning.message}`
 }
 
-export function PublishPanel({ profiles, publishing, result, onPublish, onClose }: PublishPanelProps) {
+export function PublishPanel({
+  profiles,
+  publishing,
+  result,
+  exportingMarkdown,
+  markdownExportResult,
+  onPublish,
+  onExportMarkdown,
+  onClose,
+}: PublishPanelProps) {
   const profileNames = Object.keys(profiles)
   const [selected, setSelected] = useState(profileNames[0] ?? '')
 
@@ -83,14 +103,24 @@ export function PublishPanel({ profiles, publishing, result, onPublish, onClose 
                 </div>
               </div>
 
-              <button
-                type="button"
-                className="self-start rounded bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={publishing || !selected}
-                onClick={() => onPublish(selected)}
-              >
-                {publishing ? 'Publishing…' : 'Publish'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="self-start rounded bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={publishing || exportingMarkdown || !selected}
+                  onClick={() => onPublish(selected)}
+                >
+                  {publishing ? 'Publishing…' : 'Publish'}
+                </button>
+                <button
+                  type="button"
+                  className="self-start rounded border border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={publishing || exportingMarkdown || !selected}
+                  onClick={() => onExportMarkdown(selected)}
+                >
+                  {exportingMarkdown ? 'Exporting…' : 'Export as Markdown'}
+                </button>
+              </div>
             </>
           )}
 
@@ -109,6 +139,24 @@ export function PublishPanel({ profiles, publishing, result, onPublish, onClose 
               ) : (
                 <ul className="max-h-48 space-y-1 overflow-auto text-xs text-amber-300">
                   {result.warnings.map((warning, i) => (
+                    <li key={i}>{warningLabel(warning)}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {markdownExportResult && (
+            <div className="border-t border-gray-700 pt-3">
+              <p className="mb-2 text-sm text-gray-200">
+                Exported "{markdownExportResult.profileName}" as markdown — saved {markdownExportResult.savedAs}. Paste it
+                into Google Docs or an AI tool to generate a PDF.
+              </p>
+              {markdownExportResult.warnings.length === 0 ? (
+                <p className="text-xs text-gray-400">No warnings.</p>
+              ) : (
+                <ul className="max-h-48 space-y-1 overflow-auto text-xs text-amber-300">
+                  {markdownExportResult.warnings.map((warning, i) => (
                     <li key={i}>{warningLabel(warning)}</li>
                   ))}
                 </ul>
