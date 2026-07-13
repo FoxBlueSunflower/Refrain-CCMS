@@ -58,7 +58,102 @@ describe('buildPublication — sample workspace smoke test', () => {
     expect(file.contents).not.toContain('getting-started.md"')
 
     expect(result.homeFile.path).toBe('index.html')
-    expect(result.homeFile.contents).toContain('href="content/publications/user-guide.html"')
+    expect(result.homeFile.contents).toMatch(/href="content\/publications\/user-guide\.html#pub-node-\d+"/)
+  })
+
+  it("defaults siteTitle to the publication's own title when the caller doesn't override it", () => {
+    const { documents, snippets, variables, conditionsFile, workspaceConfig, publication } = sampleContext()
+    const result = buildPublication({
+      publication,
+      sourcePath: 'publications/user-guide.json',
+      slug: 'user-guide',
+      documents,
+      snippets,
+      variables,
+      conditionsFile,
+      profile: workspaceConfig.publishProfiles.public,
+    })
+    expect(result.files[0].contents).toContain(`<a class="rf-nav-title" href="../../index.html">${publication.title}</a>`)
+  })
+
+  it('overrides siteTitle when the caller supplies one (e.g. embedding inside a whole-workspace export)', () => {
+    const { documents, snippets, variables, conditionsFile, workspaceConfig, publication } = sampleContext()
+    const result = buildPublication({
+      publication,
+      sourcePath: 'publications/user-guide.json',
+      slug: 'user-guide',
+      documents,
+      snippets,
+      variables,
+      conditionsFile,
+      profile: workspaceConfig.publishProfiles.public,
+      siteTitle: 'Acme Product Docs',
+    })
+    expect(result.files[0].contents).toContain('<a class="rf-nav-title" href="../../index.html">Acme Product Docs</a>')
+  })
+})
+
+describe('buildPublication — hierarchy sidebar anchors', () => {
+  const documents: IndexDocument[] = [
+    { path: 'docs/a.md', text: '---\ntitle: Doc A\n---\n\n# A\n\nBody A.\n' },
+    { path: 'docs/b.md', text: '---\ntitle: Doc B\n---\n\n# B\n\nBody B.\n' },
+  ]
+  const publication: Publication = {
+    title: 'Guide',
+    nodes: [
+      { type: 'heading', title: 'Intro', children: [{ type: 'doc', ref: 'docs/a.md' }] },
+      { type: 'doc', ref: 'docs/b.md' },
+    ],
+  }
+
+  it('stamps a pub-node-{index} id on each fragment in depth-first pre-order', () => {
+    const result = buildPublication({
+      publication,
+      sourcePath: 'publications/guide.json',
+      slug: 'guide',
+      documents,
+      snippets: {},
+      variables: {},
+      conditionsFile: {},
+      profile: {},
+    })
+    const html = result.files[0].contents
+    expect(html).toContain('<h1 id="pub-node-0">Intro</h1>')
+    expect(html).toContain('<section id="pub-node-1" class="rf-pub-section">')
+    expect(html).toContain('<section id="pub-node-2" class="rf-pub-section">')
+  })
+
+  it('renders a nested, clickable hierarchy sidebar whose hrefs match the fragment ids', () => {
+    const result = buildPublication({
+      publication,
+      sourcePath: 'publications/guide.json',
+      slug: 'guide',
+      documents,
+      snippets: {},
+      variables: {},
+      conditionsFile: {},
+      profile: {},
+    })
+    const html = result.files[0].contents
+    expect(html).toContain(
+      '<li><a href="#pub-node-0">Intro</a><ul class="rf-nav-list"><li><a href="#pub-node-1">Doc A</a></li></ul></li>',
+    )
+    expect(html).toContain('<li><a href="#pub-node-2">Doc B</a></li>')
+  })
+
+  it("carries the same hierarchy, qualified with the page path, onto the publication's own home page", () => {
+    const result = buildPublication({
+      publication,
+      sourcePath: 'publications/guide.json',
+      slug: 'guide',
+      documents,
+      snippets: {},
+      variables: {},
+      conditionsFile: {},
+      profile: {},
+    })
+    expect(result.homeFile.contents).toContain('href="content/publications/guide.html#pub-node-0"')
+    expect(result.homeFile.contents).toContain('href="content/publications/guide.html#pub-node-2"')
   })
 })
 
@@ -231,5 +326,11 @@ describe('buildPublication — missing doc ref', () => {
       { type: 'missing-publication-doc', file: 'publications/guide.json', message: expect.stringContaining('docs/missing.md') },
     ])
     expect(result.files[0].contents).toContain('<h1>B</h1>')
+
+    // The missing doc consumes an anchor index but gets no fragment or nav entry — only
+    // docs/b.md's own anchor (pub-node-1, since docs/missing.md took pub-node-0) should
+    // show up in the sidebar.
+    const navMatches = result.files[0].contents.match(/href="#pub-node-\d+"/g) ?? []
+    expect(navMatches).toEqual(['href="#pub-node-1"'])
   })
 })

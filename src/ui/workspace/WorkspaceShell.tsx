@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { buildPublication } from '../../core/builder/publicationBuild'
+import { buildHomePage } from '../../core/builder/home-page'
+import { buildPublication, publicationOutputPath } from '../../core/builder/publicationBuild'
 import { buildSite } from '../../core/builder/site'
 import { buildZipArchive } from '../../core/builder/zip'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
@@ -402,18 +403,51 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
 
       setPublishing(true)
       try {
-        const [docs, docTree] = await Promise.all([readAllDocuments(handle), readDocTree(handle)])
-        const result = buildSite({
+        const [docs, docTree, publicationRefs] = await Promise.all([
+          readAllDocuments(handle),
+          readDocTree(handle),
+          readAllPublicationRefs(handle),
+        ])
+        const siteResult = buildSite({
           documents: docs,
           docTree,
           snippets,
           variables,
           conditionsFile,
           profile,
-          siteTitle: workspaceConfig.site.title,
+          siteTitle: workspaceConfig.name,
         })
-        const archive = buildZipArchive(result.homeFile, result.files)
-        const suggestedName = `${slugify(workspaceConfig.site.title)}-${profileName}-${formatSnapshotTimestamp()}.zip`
+
+        const warnings = [...siteResult.warnings]
+        const publicationFiles = publicationRefs.map((ref) => {
+          const slug = ref.path.slice(0, -'.json'.length)
+          const pubResult = buildPublication({
+            publication: ref,
+            sourcePath: `${PUBLICATIONS_DIR}/${ref.path}`,
+            slug,
+            documents: docs,
+            snippets,
+            variables,
+            conditionsFile,
+            profile,
+            siteTitle: workspaceConfig.name,
+          })
+          warnings.push(...pubResult.warnings)
+          return pubResult.files[0]
+        })
+
+        const homeFile = buildHomePage({
+          siteTitle: workspaceConfig.name,
+          nav: siteResult.homeNav,
+          publications: publicationRefs.map((ref) => ({
+            title: ref.title,
+            href: publicationOutputPath(ref.path.slice(0, -'.json'.length)),
+          })),
+        })
+
+        const files = [...siteResult.files, ...publicationFiles]
+        const archive = buildZipArchive(homeFile, files)
+        const suggestedName = `${slugify(workspaceConfig.name)}-${profileName}-${formatSnapshotTimestamp()}.zip`
 
         let fileHandle: FileSystemFileHandle
         try {
@@ -435,7 +469,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
         await appendPublishLogEntry(handle, entry)
         await writeTextFile(handle, CHANGELOG_FILE, renderChangelog([...log, entry]))
 
-        setPublishResult({ profileName, savedAs: fileHandle.name, warnings: result.warnings, pageCount: result.files.length, changes })
+        setPublishResult({ profileName, savedAs: fileHandle.name, warnings, pageCount: files.length, changes })
       } catch (err) {
         pushToast({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       } finally {
@@ -565,7 +599,6 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           variables,
           conditionsFile,
           profile,
-          siteTitle: workspaceConfig.site.title,
         })
         const archive = buildZipArchive(result.homeFile, result.files)
         const suggestedName = `${slug}-${profileName}-${formatSnapshotTimestamp()}.zip`

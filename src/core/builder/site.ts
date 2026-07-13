@@ -7,7 +7,6 @@ import type { DocTreeNode } from '../workspace/types'
 import { filterConditions } from './conditions'
 import { buildHomePage } from './home-page'
 import { buildNav, docPathToOutputPath } from './nav'
-import { buildSearchIndex } from './search-index'
 import { renderPage } from './html-template'
 import { substituteTitleVariables } from './titleSubstitution'
 import type { BuildWarning, BuiltFile, PublishInput, PublishResult } from './types'
@@ -84,27 +83,19 @@ export function buildSite(input: PublishInput): PublishResult {
     pages.push({ docRelPath, outputPath, title, bodyHtml })
   }
 
-  const searchIndex = buildSearchIndex(pages.map((p) => ({ outputPath: p.outputPath, title: p.title, bodyHtml: p.bodyHtml })))
   const titleByRelPath = new Map(pages.map((p) => [p.docRelPath, p.title]))
   const titleFor = (docRelPath: string) => titleByRelPath.get(docRelPath) ?? ''
 
   const renderPageAt = (outputPath: string, pageTitle: string, bodyHtml: string): BuiltFile => {
     const nav = buildNav(docTree, outputPath, titleFor)
-    const searchEntries = searchIndex.map((entry) => ({
-      title: entry.title,
-      text: entry.text,
-      href: relativePath(outputPath, entry.path),
-    }))
-    return { path: outputPath, contents: renderPage({ siteTitle, pageTitle, bodyHtml, nav, searchEntries }) }
+    const homeHref = relativePath(`content/${outputPath}`, 'index.html')
+    return { path: outputPath, contents: renderPage({ siteTitle, pageTitle, bodyHtml, nav, homeHref }) }
   }
 
   const files: BuiltFile[] = pages.map((page) => renderPageAt(page.outputPath, page.title, page.bodyHtml))
 
-  const homeFile = buildHomePage({
-    siteTitle,
-    nav: buildNav(docTree, '__home__.html', titleFor),
-    searchIndex,
-  })
+  const homeNav = buildNav(docTree, '__home__.html', titleFor)
+  const homeFile = buildHomePage({ siteTitle, nav: homeNav })
 
-  return { files, homeFile, warnings }
+  return { files, homeFile, homeNav, warnings }
 }

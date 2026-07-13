@@ -161,6 +161,30 @@ describe('buildSite — home page', () => {
     expect(result.homeFile.path).toBe('index.html')
     expect(result.homeFile.contents).toContain('Test Site')
     expect(result.homeFile.contents).toContain('href="content/guides/setup.html"')
+    expect(result.homeNav).toEqual([
+      { kind: 'folder', title: 'Guides', children: [{ kind: 'file', title: 'setup', href: 'guides/setup.html', active: false }] },
+    ])
+  })
+
+  it('links the sidebar site title back to index.html, accounting for the content/ nesting level', () => {
+    const documents: IndexDocument[] = [{ path: 'docs/guides/setup.md', text: '# Setup\n' }]
+    const docTree: DocTreeNode[] = [
+      { kind: 'folder', name: 'Guides', path: 'guides', children: [{ kind: 'file', name: 'setup', path: 'guides/setup.md' }] },
+    ]
+
+    const result = buildSite({
+      documents,
+      docTree,
+      snippets: {},
+      variables: {},
+      conditionsFile: {},
+      profile: {},
+      siteTitle: 'Test Site',
+    })
+
+    const page = result.files.find((f) => f.path === 'guides/setup.html')!
+    expect(page.contents).toContain('<a class="rf-nav-title" href="../../index.html">Test Site</a>')
+    expect(result.homeFile.contents).toContain('<a class="rf-nav-title" href="index.html">Test Site</a>')
   })
 
   it("doesn't collide with a real docs/index.md, which stays a normal content page", () => {

@@ -1,6 +1,7 @@
 import type { IndexDocument } from '../indexer/types'
 import type { SnippetSource } from '../resolver/types'
 import type { ConditionsFile, DocTreeNode, PublishProfile, VariablesFile } from '../workspace/types'
+import type { NavNode } from './nav'
 
 export type BuildWarningType =
   | 'unknown-condition-dimension'
@@ -42,5 +43,7 @@ export interface PublishResult {
   files: BuiltFile[]
   /** The Home landing page, written outside content/ at the exported zip's root. */
   homeFile: BuiltFile
+  /** The nav tree homeFile was built from, exposed so callers can recompose a different home page (e.g. WorkspaceShell combining docs + Publications) without recomputing doc titles. */
+  homeNav: NavNode[]
   warnings: BuildWarning[]
 }
