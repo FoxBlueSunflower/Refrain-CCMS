@@ -1,7 +1,7 @@
 import { parseFrontmatter } from '../frontmatter/parse'
 import { computeFencedLines } from '../markdown/fences'
 import { createTokenPattern } from './tokens'
-import type { ResolveContext, ResolveResult, ResolverWarning } from './types'
+import type { ResolveContext, ResolveMode, ResolveResult, ResolverWarning } from './types'
 
 /**
  * Depth budget for {{> name}} expansion: a document including a snippet is
@@ -14,17 +14,19 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function errorNotice(message: string): string {
+function errorNotice(message: string, mode: ResolveMode): string {
+  if (mode === 'plain') return `⚠ ${message}`
   return `<span class="rf-resolve-error" title="${escapeHtml(message)}">⚠ ${escapeHtml(message)}</span>`
 }
 
 function resolveVariableRef(key: string, ctx: ResolveContext, warnings: ResolverWarning[]): string {
   const entry = ctx.variables[key]
+  const mode = ctx.mode ?? 'html'
   if (!entry) {
     warnings.push({ type: 'missing-variable', key, message: `Variable "${key}" is not defined in variables.json.` })
-    return errorNotice(`{{${key}}} not found`)
+    return errorNotice(`{{${key}}} not found`, mode)
   }
-  return `<span class="rf-resolved-var" title="{{${key}}}">${escapeHtml(entry.value)}</span>`
+  return mode === 'plain' ? entry.value : `<span class="rf-resolved-var" title="{{${key}}}">${escapeHtml(entry.value)}</span>`
 }
 
 function resolveSnippetRef(
@@ -34,19 +36,21 @@ function resolveSnippetRef(
   depth: number,
   warnings: ResolverWarning[],
 ): string {
+  const mode = ctx.mode ?? 'html'
+
   if (ancestors.includes(name)) {
     warnings.push({
       type: 'circular-snippet',
       key: name,
       message: `Circular snippet include: "${name}" is already part of this chain (${[...ancestors, name].join(' → ')}).`,
     })
-    return errorNotice(`Circular snippet include: "${name}"`)
+    return errorNotice(`Circular snippet include: "${name}"`, mode)
   }
 
   const raw = ctx.snippets[name]
   if (raw === undefined) {
     warnings.push({ type: 'missing-snippet', key: name, message: `Snippet "${name}" was not found in snippets/.` })
-    return errorNotice(`Snippet "${name}" not found`)
+    return errorNotice(`Snippet "${name}" not found`, mode)
   }
 
   if (depth + 1 > MAX_SNIPPET_DEPTH) {
@@ -55,7 +59,7 @@ function resolveSnippetRef(
       key: name,
       message: `Snippet "${name}" is nested too deep (max one level of snippet-in-snippet) and was not expanded.`,
     })
-    return errorNotice(`Snippet "${name}" nested too deep (max 1 level)`)
+    return errorNotice(`Snippet "${name}" nested too deep (max 1 level)`, mode)
   }
 
   const { body } = parseFrontmatter(raw)

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { BuildWarning } from '../../core/builder/types'
 import { getNodeAt, indentNode, insertNode, moveNode, outdentNode, removeNode, renameHeading, type NodePath } from '../../core/publications/edit'
 import type { Publication, PublicationNode } from '../../core/publications/types'
 import type { PublishProfile } from '../../core/workspace/types'
@@ -9,6 +10,15 @@ import { DocumentTitleDialog } from './NewDocumentDialog'
 import { PublicationTree } from './PublicationTree'
 import { type PublicationPublishResultSummary, warningLabel } from './PublishPanel'
 
+/** Result of an "Export as Markdown" run scoped to a single publication — no snapshot/changelog side effects. */
+export interface PublicationMarkdownExportResultSummary {
+  path: string
+  profileName: string
+  /** The filename the user chose in the save-file dialog. */
+  savedAs: string
+  warnings: BuildWarning[]
+}
+
 interface PublicationsPanelProps {
   publications: PublicationSummary[]
   selectedPath: string | null
@@ -18,12 +28,15 @@ interface PublicationsPanelProps {
   profiles: Record<string, PublishProfile>
   publishing: boolean
   publishResult: PublicationPublishResultSummary | null
+  exportingMarkdown: boolean
+  markdownExportResult: PublicationMarkdownExportResultSummary | null
   documentPaths: ReadonlySet<string>
   onSelect: (path: string) => void
   /** Returns whether creation succeeded, so the dialog only closes (and the typed title is only discarded) on success — a failure keeps it open with the title intact. */
   onCreate: (title: string) => Promise<boolean>
   onDelete: (path: string) => void
   onPublish: (path: string, profileName: string) => void
+  onExportMarkdown: (path: string, profileName: string) => void
   /** Applies a pure `PublicationNode[]` transform to the selected publication and persists the result. */
   onEditPublication: (mutate: (nodes: PublicationNode[]) => PublicationNode[]) => void
   onClose: () => void
@@ -45,11 +58,14 @@ export function PublicationsPanel({
   profiles,
   publishing,
   publishResult,
+  exportingMarkdown,
+  markdownExportResult,
   documentPaths,
   onSelect,
   onCreate,
   onDelete,
   onPublish,
+  onExportMarkdown,
   onEditPublication,
   onClose,
 }: PublicationsPanelProps) {
@@ -217,14 +233,24 @@ export function PublicationsPanel({
                         ))}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="rounded bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={publishing || !selectedProfile}
-                      onClick={() => onPublish(selectedPath, selectedProfile)}
-                    >
-                      {publishing ? 'Publishing…' : 'Publish'}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="rounded bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={publishing || exportingMarkdown || !selectedProfile}
+                        onClick={() => onPublish(selectedPath, selectedProfile)}
+                      >
+                        {publishing ? 'Publishing…' : 'Publish'}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={publishing || exportingMarkdown || !selectedProfile}
+                        onClick={() => onExportMarkdown(selectedPath, selectedProfile)}
+                      >
+                        {exportingMarkdown ? 'Exporting…' : 'Export as Markdown'}
+                      </button>
+                    </div>
                   </>
                 )}
 
@@ -239,6 +265,24 @@ export function PublicationsPanel({
                     ) : (
                       <ul className="max-h-32 space-y-1 overflow-auto text-xs text-amber-300">
                         {publishResult.warnings.map((warning, i) => (
+                          <li key={i}>{warningLabel(warning)}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {markdownExportResult && markdownExportResult.path === selectedPath && (
+                  <div className="mt-3 border-t border-gray-700 pt-3">
+                    <p className="mb-2 text-sm text-gray-200">
+                      Exported "{markdownExportResult.profileName}" as markdown — saved {markdownExportResult.savedAs}.
+                      Paste it into Google Docs or an AI tool to generate a PDF.
+                    </p>
+                    {markdownExportResult.warnings.length === 0 ? (
+                      <p className="text-xs text-gray-400">No warnings.</p>
+                    ) : (
+                      <ul className="max-h-32 space-y-1 overflow-auto text-xs text-amber-300">
+                        {markdownExportResult.warnings.map((warning, i) => (
                           <li key={i}>{warningLabel(warning)}</li>
                         ))}
                       </ul>
