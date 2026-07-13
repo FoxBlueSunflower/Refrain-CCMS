@@ -3,6 +3,7 @@ import { checkHeadingNormalization } from '../../core/frontmatter/headingCheck'
 import { parseFrontmatter, type FrontmatterScalar } from '../../core/frontmatter/parse'
 import type { FrontmatterEntryKind } from '../../core/frontmatter/schema'
 import { deleteFrontmatterField, setFrontmatterField } from '../../core/frontmatter/update'
+import { collectInternalLinks } from '../../core/indexer/links'
 import { collectRefs } from '../../core/indexer/scan'
 import type { WorkspaceIndex } from '../../core/indexer/types'
 import type { ResolveContext } from '../../core/resolver/types'
@@ -102,10 +103,15 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
   )
   const frontmatterWarnings = useMemo(() => [...parsed.warnings, ...headingWarnings], [parsed, headingWarnings])
 
-  const usesCount = useMemo(() => {
+  const usesItems = useMemo(() => {
     const refs = collectRefs(docText)
-    return refs.variables.size + refs.snippets.size
-  }, [docText])
+    const links = collectInternalLinks(docText, currentRelPath, documentPaths)
+    return {
+      variables: [...refs.variables].sort(),
+      snippets: [...refs.snippets].sort(),
+      links: [...links].sort(),
+    }
+  }, [docText, currentRelPath, documentPaths])
 
   const usedInCount =
     entryKind === 'snippet'
@@ -211,13 +217,14 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
             completionItems={completionItems}
             conditionsFile={conditionsFile}
             documentPaths={documentPaths}
-            usesCount={usesCount}
+            usesItems={usesItems}
             usedInCount={usedInCount}
             onInsertText={insert}
             onInsertCondition={insertCondition}
             onInsertBlock={insertBlock}
             onInsertInline={insertInline}
             onInsertLink={insertLink}
+            onNavigate={onNavigate}
             onOpenVariables={onOpenVariables}
             onOpenConditions={onOpenConditions}
             onOpenWhereUsed={onOpenWhereUsed}

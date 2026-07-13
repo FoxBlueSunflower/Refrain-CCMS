@@ -30,6 +30,30 @@ class EmptyLineWidget extends WidgetType {
   }
 }
 
+class HorizontalRuleWidget extends WidgetType {
+  private readonly from: number
+
+  constructor(from: number) {
+    super()
+    this.from = from
+  }
+
+  eq(other: HorizontalRuleWidget): boolean {
+    return other.from === this.from
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const div = document.createElement('div')
+    div.className = 'rf-hr'
+    div.addEventListener('mousedown', (event) => {
+      event.preventDefault()
+      view.dispatch({ selection: { anchor: this.from } })
+      view.focus()
+    })
+    return div
+  }
+}
+
 function touchesSelection(view: EditorView, from: number, to: number): boolean {
   const selection = view.state.selection.main
   return selection.from <= to && selection.to >= from
@@ -42,6 +66,9 @@ function touchesSelection(view: EditorView, from: number, to: number): boolean {
  * {{variable}} pill or [link](url) pill nested inside stays disjoint from
  * this plugin's own replace ranges and renders correctly underneath.
  * Tables never hide anything (styled-only, per product decision).
+ * Horizontal rules replace the whole "---" line with an actual ruled-line
+ * widget (same collapse-on-cursor-touch convention as the marker-hiding
+ * above), except when quoted inside a Blockquote, where it's left raw.
  */
 function buildTreeDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>()
@@ -84,6 +111,19 @@ function buildTreeDecorations(view: EditorView): DecorationSet {
       }
 
       if (node.name === 'Blockquote') {
+        // A nested blockquote (">> text") parses as nested Blockquote nodes
+        // that all span the same overlapping line range — an inner one's
+        // own from-scratch line loop below would re-add decorations at
+        // positions already covered by its ancestor's loop, violating
+        // RangeSetBuilder's sorted-add requirement. Only the outermost
+        // Blockquote runs the loop (it already covers every nested line);
+        // inner ones just keep descending so non-blockquote content nested
+        // inside (bold/italic, tables, headings) still gets decorated.
+        let ancestor = node.node.parent
+        while (ancestor) {
+          if (ancestor.name === 'Blockquote') return true
+          ancestor = ancestor.parent
+        }
         const active = touchesSelection(view, node.from, node.to)
         const firstLine = doc.lineAt(node.from).number
         const lastLine = doc.lineAt(node.to).number
@@ -91,7 +131,9 @@ function buildTreeDecorations(view: EditorView): DecorationSet {
           const line = doc.line(lineNo)
           builder.add(line.from, line.from, Decoration.line({ class: 'rf-blockquote' }))
           if (!active) {
-            const match = /^\s*>\s?/.exec(line.text)
+            // (>\s?)+ so a nested line's marker for every quote level
+            // (">> text") is hidden in one pass, not just the outermost ">".
+            const match = /^\s*(>\s?)+/.exec(line.text)
             if (match) builder.add(line.from, line.from + match[0].length, Decoration.replace({}))
           }
         }
@@ -110,6 +152,27 @@ function buildTreeDecorations(view: EditorView): DecorationSet {
         // No further descent — table cell content stays raw, unstyled
         // beyond the row-level background band (never hidden, per product
         // decision), so there's nothing more to decorate inside.
+        return false
+      }
+
+      if (node.name === 'HorizontalRule') {
+        // A HorizontalRule inside a Blockquote is a sibling of that block's
+        // own QuoteMark nodes, not a descendant excluded by the Blockquote
+        // handler's `return true` above — so it still reaches this branch.
+        // The Blockquote handler already added a replace decoration over
+        // this line's "> " marker prefix (starting at this same line.from),
+        // and RangeSetBuilder requires strictly increasing, non-overlapping
+        // add() calls, so a full-line replace here would collide with it.
+        // Leave quoted thematic breaks as raw text rather than double-decorate.
+        let ancestor = node.node.parent
+        while (ancestor) {
+          if (ancestor.name === 'Blockquote') return false
+          ancestor = ancestor.parent
+        }
+        const line = doc.lineAt(node.from)
+        if (!touchesSelection(view, line.from, line.to)) {
+          builder.add(line.from, line.to, Decoration.replace({ widget: new HorizontalRuleWidget(line.from) }))
+        }
         return false
       }
 
@@ -153,8 +216,9 @@ function buildDecorations(view: EditorView): DecorationSet {
  * collapse-on-cursor-touch treatment already used for {{tokens}}/[links]/
  * :::when blocks: bold, italic, underline, H1/H2, and blockquote markers
  * hide until the cursor is on them, then reveal as plain editable text.
- * Tables get background/dimming styling only — their markup is never
- * hidden. Purely a display layer; underlying document text is untouched.
+ * Horizontal rules render as an actual ruled line, same treatment. Tables
+ * get background/dimming styling only — their markup is never hidden.
+ * Purely a display layer; underlying document text is untouched.
  */
 export function createMarkdownStylePlugin(): Extension {
   return ViewPlugin.fromClass(

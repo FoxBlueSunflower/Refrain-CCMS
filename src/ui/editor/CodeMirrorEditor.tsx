@@ -294,6 +294,13 @@ export const CodeMirrorEditor = forwardRef<CodeMirrorEditorHandle, CodeMirrorEdi
             color: '#9ca3af',
             fontStyle: 'italic',
           },
+          '.rf-hr': {
+            display: 'block',
+            height: '0',
+            margin: '0.7em 0',
+            borderTop: '1px solid #4b5563',
+            cursor: 'text',
+          },
           '.rf-table-row': { backgroundColor: '#1f293733' },
           '.rf-table-delimiter': { color: '#6b7280' },
           '.rf-empty-line-placeholder': { color: '#6b7280', fontStyle: 'italic', cursor: 'text' },

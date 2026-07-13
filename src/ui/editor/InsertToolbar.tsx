@@ -1,28 +1,41 @@
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { isExternalHref } from '../../core/workspace/paths'
 import type { ConditionsFile } from '../../core/workspace/types'
+import { BlockquoteIcon, CodeBlockIcon, HorizontalRuleIcon, SpaceIcon, TableIcon } from './blockIcons'
 import type { BlockAction } from './blockEditing'
 import type { TokenCompletionItems } from './completions'
 import type { InlineAction } from './inlineEditing'
 import { BulletListIcon, ChecklistIcon, NumberedListIcon } from './listIcons'
 import { BlocksIcon, ConIcon, ListsIcon, SnptIcon, TxtIcon, VarGlyph } from './toolbarIcons'
 
-type MenuKey = 'txt' | 'var' | 'snpt' | 'con' | 'lists' | 'block'
+type MenuKey = 'txt' | 'var' | 'snpt' | 'con' | 'lists' | 'block' | 'uses'
+
+export interface UsesItems {
+  variables: string[]
+  snippets: string[]
+  links: string[]
+}
 
 interface InsertToolbarProps {
   completionItems: TokenCompletionItems
   conditionsFile: ConditionsFile
   documentPaths: ReadonlySet<string>
-  usesCount: number
+  usesItems: UsesItems
   usedInCount: number
   onInsertText: (text: string) => void
   onInsertCondition: (dimension: string, value: string) => void
   onInsertBlock: (action: BlockAction) => void
   onInsertInline: (action: InlineAction) => void
   onInsertLink: (target: string) => void
+  onNavigate: (relPath: string) => void
   onOpenVariables: () => void
   onOpenConditions: () => void
   onOpenWhereUsed: () => void
+}
+
+function docLabel(docPath: string): string {
+  const name = docPath.split('/').pop() ?? docPath
+  return name.endsWith('.md') ? name.slice(0, -3) : name
 }
 
 const INLINE_ACTIONS: { action: InlineAction; label: string; className: string }[] = [
@@ -37,12 +50,12 @@ const LIST_ACTIONS: { action: BlockAction; label: string; icon: () => ReactEleme
   { action: 'checklist', label: 'Checklist', icon: ChecklistIcon },
 ]
 
-const OTHER_BLOCK_ACTIONS: { action: BlockAction; label: string }[] = [
-  { action: 'blockquote', label: 'Blockquote' },
-  { action: 'code-block', label: 'Code block' },
-  { action: 'horizontal-rule', label: 'Horizontal rule' },
-  { action: 'table', label: 'Table' },
-  { action: 'space', label: 'Space' },
+const OTHER_BLOCK_ACTIONS: { action: BlockAction; label: string; icon: () => ReactElement }[] = [
+  { action: 'blockquote', label: 'Blockquote', icon: BlockquoteIcon },
+  { action: 'code-block', label: 'Code block', icon: CodeBlockIcon },
+  { action: 'horizontal-rule', label: 'Horizontal rule', icon: HorizontalRuleIcon },
+  { action: 'table', label: 'Table', icon: TableIcon },
+  { action: 'space', label: 'Space', icon: SpaceIcon },
 ]
 
 function ToolbarButton({
@@ -102,13 +115,14 @@ export function InsertToolbar({
   completionItems,
   conditionsFile,
   documentPaths,
-  usesCount,
+  usesItems,
   usedInCount,
   onInsertText,
   onInsertCondition,
   onInsertBlock,
   onInsertInline,
   onInsertLink,
+  onNavigate,
   onOpenVariables,
   onOpenConditions,
   onOpenWhereUsed,
@@ -167,6 +181,7 @@ export function InsertToolbar({
   }
 
   const hasConditions = Object.values(conditionsFile).some((values) => values.length > 0)
+  const usesTotal = usesItems.variables.length + usesItems.snippets.length + usesItems.links.length
 
   return (
     <div className="flex items-center gap-2 border-b border-gray-700 bg-gray-800 px-4 py-2">
@@ -279,13 +294,14 @@ export function InsertToolbar({
         <ToolbarButton icon={<BlocksIcon />} accessibleLabel="Blocks" isOpen={openMenu === 'block'} onToggle={() => toggleMenu('block')} />
         {openMenu === 'block' && (
           <DropdownPanel>
-            {OTHER_BLOCK_ACTIONS.map(({ action, label }) => (
+            {OTHER_BLOCK_ACTIONS.map(({ action, label, icon: Icon }) => (
               <button
                 key={action}
                 type="button"
-                className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                className="flex w-full items-center gap-2 truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
                 onClick={() => insertBlock(action)}
               >
+                <Icon />
                 {label}
               </button>
             ))}
@@ -306,7 +322,7 @@ export function InsertToolbar({
                 title={s.description}
                 onClick={() => insertText(`{{> ${s.key}}}`)}
               >
-                {`{{> ${s.key}}}`}
+                {s.key}
                 {s.description && <span className="ml-2 text-xs text-gray-400">{s.description}</span>}
               </button>
             ))}
@@ -327,7 +343,7 @@ export function InsertToolbar({
                 title={v.description}
                 onClick={() => insertText(`{{${v.key}}}`)}
               >
-                {`{{${v.key}}}`}
+                {v.key}
                 {v.description && <span className="ml-2 text-xs text-gray-400">{v.description}</span>}
               </button>
             ))}
@@ -356,7 +372,7 @@ export function InsertToolbar({
                   className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
                   onClick={() => insertCondition(dimension, value)}
                 >
-                  {`:::when ${dimension}=${value}`}
+                  {`${dimension}: ${value}`}
                 </button>
               )),
             )}
@@ -372,7 +388,53 @@ export function InsertToolbar({
         )}
       </div>
 
-      <span className="rounded border border-gray-700 px-2 py-0.5 text-xs text-gray-400">Uses {usesCount}</span>
+      <div className="relative z-20">
+        <button
+          type="button"
+          className={`rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700 ${openMenu === 'uses' ? 'bg-gray-700' : ''}`}
+          onClick={() => toggleMenu('uses')}
+          aria-haspopup="menu"
+          aria-expanded={openMenu === 'uses'}
+        >
+          Uses {usesTotal}
+        </button>
+        {openMenu === 'uses' && (
+          <DropdownPanel>
+            <p className="px-2 pt-1 pb-0.5 text-xs text-gray-400">Variables</p>
+            {usesItems.variables.length === 0 && <p className="px-2 py-1 text-xs text-gray-400">None</p>}
+            {usesItems.variables.map((key) => (
+              <div key={key} className="truncate rounded px-2 py-1 text-sm text-gray-200">
+                {key}
+              </div>
+            ))}
+
+            <p className="px-2 pt-2 pb-0.5 text-xs text-gray-400">Snippets</p>
+            {usesItems.snippets.length === 0 && <p className="px-2 py-1 text-xs text-gray-400">None</p>}
+            {usesItems.snippets.map((key) => (
+              <div key={key} className="truncate rounded px-2 py-1 text-sm text-gray-200">
+                {key}
+              </div>
+            ))}
+
+            <p className="px-2 pt-2 pb-0.5 text-xs text-gray-400">Links</p>
+            {usesItems.links.length === 0 && <p className="px-2 py-1 text-xs text-gray-400">None</p>}
+            {usesItems.links.map((relPath) => (
+              <button
+                key={relPath}
+                type="button"
+                className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                onClick={() => {
+                  onNavigate(relPath)
+                  close()
+                }}
+              >
+                {docLabel(relPath)}
+                <span className="ml-2 text-xs text-gray-500">{relPath}</span>
+              </button>
+            ))}
+          </DropdownPanel>
+        )}
+      </div>
 
       <button
         type="button"
