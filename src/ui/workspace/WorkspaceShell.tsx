@@ -156,6 +156,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     variables: {},
     conditions: {},
     documentPublications: {},
+    snippetsUsedBySnippets: {},
   })
   const [whereUsedOpen, setWhereUsedOpen] = useState(false)
 
@@ -1050,6 +1051,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
               documentPaths={documentPaths}
               completionItems={completionItems}
               conditionsFile={conditionsFile}
+              index={index}
               onChange={handleBufferChange}
               onSave={handleExplicitSave}
               onNavigate={(relPath) => void handleNavigateFromPreview(relPath)}
@@ -1057,6 +1059,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
               onOpenProfiles={() => void openProfilesEditor()}
               onOpenVariables={() => void openVariablesEditor()}
               onOpenConditions={() => void openConditionsEditor()}
+              onOpenWhereUsed={() => setWhereUsedOpen(true)}
             />
           ) : (
             <main className="flex flex-1 flex-col items-center justify-center bg-gray-900">
@@ -1134,9 +1137,20 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
           snippets={snippets}
           documents={documentIndexPaths}
           index={index}
+          initialSelection={
+            openDoc && !openDoc.isTemplate
+              ? openDoc.kind === 'snippet'
+                ? { kind: 'snippet', key: titleFromPath(openDoc.relPath) }
+                : { kind: 'document', key: openDoc.fullPath }
+              : undefined
+          }
           onOpenDocument={(docPath) => {
             setWhereUsedOpen(false)
             void openEntry('document', docPath.slice(baseDirFor('document').length + 1))
+          }}
+          onOpenSnippet={(name) => {
+            setWhereUsedOpen(false)
+            void openEntry('snippet', `${name}.md`)
           }}
           onOpenPublication={(path) => {
             setWhereUsedOpen(false)

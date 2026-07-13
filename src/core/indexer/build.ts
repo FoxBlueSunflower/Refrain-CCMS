@@ -61,6 +61,11 @@ function invert(entries: Array<readonly [string, Set<string>]>): Record<string, 
   return result
 }
 
+/** snippet name -> other snippet names whose body directly includes it (one level). */
+function buildSnippetUsage(snippets: IndexSnippet[], snippetRefs: Map<string, ScannedRefs>): Record<string, string[]> {
+  return invert(snippets.map((s) => [s.name, snippetRefs.get(s.name)!.snippets] as const))
+}
+
 /** doc path -> publications that include it, sorted by publication title. */
 function buildDocumentPublications(publications: IndexPublication[]): Record<string, DocPublicationRef[]> {
   const map = new Map<string, DocPublicationRef[]>()
@@ -97,5 +102,6 @@ export function buildWorkspaceIndex(input: IndexInput, builtAt: string = new Dat
     snippets: invert(perDoc.map(([path, usage]) => [path, usage.snippets] as const)),
     conditions: invert(perDoc.map(([path, usage]) => [path, usage.conditions] as const)),
     documentPublications: buildDocumentPublications(input.publications ?? []),
+    snippetsUsedBySnippets: buildSnippetUsage(input.snippets, snippetRefs),
   }
 }

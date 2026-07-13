@@ -3,6 +3,8 @@ import { checkHeadingNormalization } from '../../core/frontmatter/headingCheck'
 import { parseFrontmatter, type FrontmatterScalar } from '../../core/frontmatter/parse'
 import type { FrontmatterEntryKind } from '../../core/frontmatter/schema'
 import { deleteFrontmatterField, setFrontmatterField } from '../../core/frontmatter/update'
+import { collectRefs } from '../../core/indexer/scan'
+import type { WorkspaceIndex } from '../../core/indexer/types'
 import type { ResolveContext } from '../../core/resolver/types'
 import type { ConditionsFile } from '../../core/workspace/types'
 import type { BlockAction } from './blockEditing'
@@ -34,6 +36,7 @@ interface EditorPaneProps {
   documentPaths: ReadonlySet<string>
   completionItems: TokenCompletionItems
   conditionsFile: ConditionsFile
+  index: WorkspaceIndex
   onChange: (text: string) => void
   onSave: () => void
   onNavigate: (relPath: string) => void
@@ -41,6 +44,7 @@ interface EditorPaneProps {
   onOpenProfiles: () => void
   onOpenVariables: () => void
   onOpenConditions: () => void
+  onOpenWhereUsed: () => void
 }
 
 function statusLabel(dirty: boolean, saveStatus: SaveStatus): { text: string; className: string } {
@@ -64,6 +68,7 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
     documentPaths,
     completionItems,
     conditionsFile,
+    index,
     onChange,
     onSave,
     onNavigate,
@@ -71,6 +76,7 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
     onOpenProfiles,
     onOpenVariables,
     onOpenConditions,
+    onOpenWhereUsed,
   },
   forwardedRef,
 ) {
@@ -95,6 +101,16 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
     [entryKind, parsed],
   )
   const frontmatterWarnings = useMemo(() => [...parsed.warnings, ...headingWarnings], [parsed, headingWarnings])
+
+  const usesCount = useMemo(() => {
+    const refs = collectRefs(docText)
+    return refs.variables.size + refs.snippets.size
+  }, [docText])
+
+  const usedInCount =
+    entryKind === 'snippet'
+      ? (index.snippets[title]?.length ?? 0) + (index.snippetsUsedBySnippets[title]?.length ?? 0)
+      : index.documentPublications[path]?.length ?? 0
 
   useImperativeHandle(forwardedRef, () => ({
     togglePreview: () => setPreviewVisible((visible) => !visible),
@@ -195,6 +211,8 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
             completionItems={completionItems}
             conditionsFile={conditionsFile}
             documentPaths={documentPaths}
+            usesCount={usesCount}
+            usedInCount={usedInCount}
             onInsertText={insert}
             onInsertCondition={insertCondition}
             onInsertBlock={insertBlock}
@@ -202,6 +220,7 @@ export const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function
             onInsertLink={insertLink}
             onOpenVariables={onOpenVariables}
             onOpenConditions={onOpenConditions}
+            onOpenWhereUsed={onOpenWhereUsed}
           />
           <div className="min-h-0 flex-1">
             <CodeMirrorEditor

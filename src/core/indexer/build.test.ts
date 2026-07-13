@@ -70,6 +70,34 @@ describe('buildWorkspaceIndex', () => {
     expect(index.variables.deep_var).toBeUndefined()
   })
 
+  it('tracks a snippet used directly by another snippet, even when neither is pulled into any document', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [],
+        snippets: [snippet('outer', '{{> inner}}'), snippet('inner', 'Careful.')],
+      },
+      BUILT_AT,
+    )
+    expect(index.snippetsUsedBySnippets).toEqual({ inner: ['outer'] })
+    expect(index.snippets.inner).toBeUndefined()
+  })
+
+  it('attributes a snippet used by two other snippets to both', () => {
+    const index = buildWorkspaceIndex(
+      {
+        documents: [],
+        snippets: [snippet('a', '{{> shared}}'), snippet('b', '{{> shared}}'), snippet('shared', 'Hi.')],
+      },
+      BUILT_AT,
+    )
+    expect(index.snippetsUsedBySnippets).toEqual({ shared: ['a', 'b'] })
+  })
+
+  it('leaves a snippet with no snippet-includes absent from snippetsUsedBySnippets', () => {
+    const index = buildWorkspaceIndex({ documents: [], snippets: [snippet('lonely', 'No includes here.')] }, BUILT_AT)
+    expect(index.snippetsUsedBySnippets).toEqual({})
+  })
+
   it('ignores a reference to a missing snippet without crashing or fabricating an entry', () => {
     const index = buildWorkspaceIndex({ documents: [doc('docs/a.md', '{{> ghost}}')], snippets: [] }, BUILT_AT)
     expect(index.snippets).toEqual({ ghost: ['docs/a.md'] })

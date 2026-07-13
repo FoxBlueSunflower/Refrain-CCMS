@@ -9,7 +9,9 @@ interface WhereUsedPanelProps {
   snippets: SnippetSource
   documents: string[]
   index: WorkspaceIndex
+  initialSelection?: { kind: Kind; key: string }
   onOpenDocument: (docPath: string) => void
+  onOpenSnippet: (name: string) => void
   onOpenPublication: (path: string) => void
   onClose: () => void
 }
@@ -38,11 +40,13 @@ export function WhereUsedPanel({
   snippets,
   documents,
   index,
+  initialSelection,
   onOpenDocument,
+  onOpenSnippet,
   onOpenPublication,
   onClose,
 }: WhereUsedPanelProps) {
-  const [selection, setSelection] = useState<Selection>(null)
+  const [selection, setSelection] = useState<Selection>(initialSelection ?? null)
 
   const variableKeys = allKeys(Object.keys(variables), index.variables)
   const snippetKeys = allKeys(Object.keys(snippets), index.snippets)
@@ -51,6 +55,7 @@ export function WhereUsedPanel({
     selection && selection.kind !== 'document'
       ? (selection.kind === 'variable' ? index.variables : index.snippets)[selection.key] ?? []
       : []
+  const usedBySnippets = selection && selection.kind === 'snippet' ? index.snippetsUsedBySnippets[selection.key] ?? [] : []
   const usedInPublications = selection && selection.kind === 'document' ? index.documentPublications[selection.key] ?? [] : []
 
   return (
@@ -90,7 +95,9 @@ export function WhereUsedPanel({
               onClick={() => setSelection({ kind: 'snippet', key })}
             >
               <span className="truncate">{key}</span>
-              <span className="ml-2 shrink-0 text-xs text-gray-400">{index.snippets[key]?.length ?? 0}</span>
+              <span className="ml-2 shrink-0 text-xs text-gray-400">
+                {(index.snippets[key]?.length ?? 0) + (index.snippetsUsedBySnippets[key]?.length ?? 0)}
+              </span>
             </button>
           ))}
 
@@ -127,7 +134,26 @@ export function WhereUsedPanel({
 
           {!selection && <p className="text-sm text-gray-400">Select a variable, snippet, or document on the left to see where it's used.</p>}
 
-          {selection && selection.kind !== 'document' && usedBy.length === 0 && <EmptyState title="Not used anywhere yet" />}
+          {selection && selection.kind !== 'document' && usedBy.length === 0 && usedBySnippets.length === 0 && (
+            <EmptyState title="Not used anywhere yet" />
+          )}
+
+          {selection && selection.kind === 'snippet' && usedBySnippets.length > 0 && (
+            <ul className="mb-3 space-y-1">
+              {usedBySnippets.map((name) => (
+                <li key={`snippet-${name}`}>
+                  <button
+                    type="button"
+                    className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+                    onClick={() => onOpenSnippet(name)}
+                  >
+                    {name}
+                    <span className="ml-2 text-xs text-gray-500">snippet</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {selection && selection.kind !== 'document' && usedBy.length > 0 && (
             <ul className="flex-1 space-y-1 overflow-auto">

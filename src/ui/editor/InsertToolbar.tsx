@@ -12,6 +12,8 @@ interface InsertToolbarProps {
   completionItems: TokenCompletionItems
   conditionsFile: ConditionsFile
   documentPaths: ReadonlySet<string>
+  usesCount: number
+  usedInCount: number
   onInsertText: (text: string) => void
   onInsertCondition: (dimension: string, value: string) => void
   onInsertBlock: (action: BlockAction) => void
@@ -19,6 +21,7 @@ interface InsertToolbarProps {
   onInsertLink: (target: string) => void
   onOpenVariables: () => void
   onOpenConditions: () => void
+  onOpenWhereUsed: () => void
 }
 
 const INLINE_ACTIONS: { action: InlineAction; label: string; className: string }[] = [
@@ -89,6 +92,8 @@ export function InsertToolbar({
   completionItems,
   conditionsFile,
   documentPaths,
+  usesCount,
+  usedInCount,
   onInsertText,
   onInsertCondition,
   onInsertBlock,
@@ -96,6 +101,7 @@ export function InsertToolbar({
   onInsertLink,
   onOpenVariables,
   onOpenConditions,
+  onOpenWhereUsed,
 }: InsertToolbarProps) {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null)
   const [txtView, setTxtView] = useState<'menu' | 'link'>('menu')
@@ -355,6 +361,16 @@ export function InsertToolbar({
           </DropdownPanel>
         )}
       </div>
+
+      <span className="rounded border border-gray-700 px-2 py-0.5 text-xs text-gray-400">Uses {usesCount}</span>
+
+      <button
+        type="button"
+        className="rounded border border-gray-600 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-700"
+        onClick={onOpenWhereUsed}
+      >
+        Used in {usedInCount}
+      </button>
     </div>
   )
 }
