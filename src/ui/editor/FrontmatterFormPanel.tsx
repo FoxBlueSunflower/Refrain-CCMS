@@ -122,7 +122,9 @@ export function FrontmatterFormPanel({
             </div>
           )}
           <div className="space-y-2">
-            {FRONTMATTER_SCHEMA[entryKind].map((field) => (
+            {FRONTMATTER_SCHEMA[entryKind]
+              .filter((field) => field.key !== 'order')
+              .map((field) => (
               <div key={field.key} className="flex items-center gap-2">
                 <label className="w-32 shrink-0 text-xs text-gray-400" htmlFor={`fm-${field.key}`}>
                   {field.label}

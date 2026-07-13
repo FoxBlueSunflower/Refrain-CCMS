@@ -8,7 +8,7 @@ export function docPathToOutputPath(docRelPath: string): string {
 
 export type NavNode =
   | { kind: 'folder'; title: string; children: NavNode[] }
-  | { kind: 'file'; title: string; href: string; active: boolean }
+  | { kind: 'file'; title: string; href: string; active: boolean; children?: NavNode[] }
 
 /**
  * Builds the published site's nav tree from the same DocTreeNode hierarchy
@@ -45,6 +45,12 @@ export function prefixNavHrefs(nodes: NavNode[], prefix: string): NavNode[] {
     if (node.kind === 'folder') {
       return { kind: 'folder', title: node.title, children: prefixNavHrefs(node.children, prefix) }
     }
-    return { kind: 'file', title: node.title, href: `${prefix}/${node.href}`, active: false }
+    return {
+      kind: 'file',
+      title: node.title,
+      href: `${prefix}/${node.href}`,
+      active: false,
+      ...(node.children && node.children.length > 0 ? { children: prefixNavHrefs(node.children, prefix) } : {}),
+    }
   })
 }

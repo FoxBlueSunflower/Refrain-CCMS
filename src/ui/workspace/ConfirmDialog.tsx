@@ -8,7 +8,7 @@ interface ConfirmDialogProps {
 
 export function ConfirmDialog({ title, message, confirmLabel = 'Confirm', onConfirm, onCancel }: ConfirmDialogProps) {
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/30 p-4" onClick={onCancel}>
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4" onClick={onCancel}>
       <div
         className="w-full max-w-sm rounded-lg bg-gray-800 p-5 shadow-xl"
         onClick={(event) => event.stopPropagation()}

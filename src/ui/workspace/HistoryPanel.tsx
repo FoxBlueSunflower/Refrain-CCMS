@@ -54,7 +54,7 @@ export function HistoryPanel({
 
   return (
     <>
-      <div className="fixed inset-0 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
         <div
           className="flex w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-gray-800 shadow-xl"
           onClick={(event) => event.stopPropagation()}
