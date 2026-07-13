@@ -111,6 +111,19 @@ function buildTreeDecorations(view: EditorView): DecorationSet {
       }
 
       if (node.name === 'Blockquote') {
+        // A nested blockquote (">> text") parses as nested Blockquote nodes
+        // that all span the same overlapping line range — an inner one's
+        // own from-scratch line loop below would re-add decorations at
+        // positions already covered by its ancestor's loop, violating
+        // RangeSetBuilder's sorted-add requirement. Only the outermost
+        // Blockquote runs the loop (it already covers every nested line);
+        // inner ones just keep descending so non-blockquote content nested
+        // inside (bold/italic, tables, headings) still gets decorated.
+        let ancestor = node.node.parent
+        while (ancestor) {
+          if (ancestor.name === 'Blockquote') return true
+          ancestor = ancestor.parent
+        }
         const active = touchesSelection(view, node.from, node.to)
         const firstLine = doc.lineAt(node.from).number
         const lastLine = doc.lineAt(node.to).number
@@ -118,7 +131,9 @@ function buildTreeDecorations(view: EditorView): DecorationSet {
           const line = doc.line(lineNo)
           builder.add(line.from, line.from, Decoration.line({ class: 'rf-blockquote' }))
           if (!active) {
-            const match = /^\s*>\s?/.exec(line.text)
+            // (>\s?)+ so a nested line's marker for every quote level
+            // (">> text") is hidden in one pass, not just the outermost ">".
+            const match = /^\s*(>\s?)+/.exec(line.text)
             if (match) builder.add(line.from, line.from + match[0].length, Decoration.replace({}))
           }
         }
