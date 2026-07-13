@@ -142,6 +142,30 @@ describe('buildPublication — reordering/nesting reflected in output levels', (
     })
     expect(result.files[0].contents).toContain('<h2>A</h2>')
   })
+
+  it('renders a doc nested directly under another doc (no intervening heading) as <h2>', () => {
+    const nestedDocuments: IndexDocument[] = [
+      ...documents,
+      { path: 'docs/b.md', text: '---\ntitle: B\n---\n\n# B\n\nBody.\n' },
+    ]
+    const publication: Publication = {
+      title: 'Guide',
+      nodes: [{ type: 'doc', ref: 'docs/a.md', children: [{ type: 'doc', ref: 'docs/b.md' }] }],
+    }
+    const result = buildPublication({
+      publication,
+      sourcePath: 'publications/guide.json',
+      slug: 'guide',
+      documents: nestedDocuments,
+      snippets: {},
+      variables: {},
+      conditionsFile: {},
+      profile: {},
+      siteTitle: 'Test',
+    })
+    expect(result.files[0].contents).toContain('<h1>A</h1>')
+    expect(result.files[0].contents).toContain('<h2>B</h2>')
+  })
 })
 
 describe('buildPublication — a doc\'s own H1/H2/H3 re-nested at tree depth 3', () => {

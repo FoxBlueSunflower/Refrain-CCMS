@@ -267,7 +267,10 @@ Refrain's original spec, which only ever planned single-document publish.
   hard block) in the editor going forward.
 - **9b. Publication object.** `publications/` folder; ordered tree of
   references to docs (not copies) — nodes can be docs, or
-  structural-only headings that exist purely in the publication. See
+  structural-only headings that exist purely in the publication. Either
+  kind may hold children: a doc can have sub-docs/sub-headings nested
+  directly beneath it, not just headings — `heading` is only distinct in
+  being content-free, not in being the sole nesting mechanism. See
   SPEC.md Part 2 for the file shape.
 - **9c. Hierarchy assignment at publish time.** Resolver walks tree
   depth, assigns heading levels based on position (the doc's own H1

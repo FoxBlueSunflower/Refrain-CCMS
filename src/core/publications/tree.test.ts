@@ -51,6 +51,17 @@ describe('collectDocRefs', () => {
       'docs/faq.md',
     ])
   })
+
+  it('collects a doc node\'s own ref plus refs nested in its children', () => {
+    const nodes: PublicationNode[] = [
+      {
+        type: 'doc',
+        ref: 'docs/guides/installation.md',
+        children: [{ type: 'doc', ref: 'docs/guides/uninstall.md' }],
+      },
+    ]
+    expect(collectDocRefs(nodes)).toEqual(['docs/guides/installation.md', 'docs/guides/uninstall.md'])
+  })
 })
 
 describe('countNodes', () => {
@@ -79,5 +90,16 @@ describe('countNodes', () => {
       },
     ]
     expect(countNodes(nodes)).toBe(4)
+  })
+
+  it('counts a doc node\'s nested children', () => {
+    const nodes: PublicationNode[] = [
+      {
+        type: 'doc',
+        ref: 'docs/guides/installation.md',
+        children: [{ type: 'doc', ref: 'docs/guides/uninstall.md' }],
+      },
+    ]
+    expect(countNodes(nodes)).toBe(2)
   })
 })

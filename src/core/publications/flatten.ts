@@ -25,10 +25,9 @@ function flattenAt(nodes: PublicationNode[], depth: number, out: FlatPublication
 
     if (node.type === 'doc') {
       out.push({ type: 'doc', level, ref: node.ref, levelClamped })
-      continue
+    } else {
+      out.push({ type: 'heading', level, title: node.title, levelClamped })
     }
-
-    out.push({ type: 'heading', level, title: node.title, levelClamped })
     if (node.children) flattenAt(node.children, depth + 1, out)
   }
 }
@@ -36,12 +35,12 @@ function flattenAt(nodes: PublicationNode[], depth: number, out: FlatPublication
 /**
  * Depth-first flattening of a publication's tree (Phase 9c), assigning each
  * node a heading level equal to its tree depth (1-based). Depth only
- * increases through a heading node's `children` — a doc node that merely
- * follows a heading in the same array (not nested inside its `children`,
- * see SPEC.md's publication example) is a sibling at the same depth, not
- * implicitly nested under it. Depth beyond H6 clamps to 6 (levelClamped:
- * true) rather than implying an invalid heading level — callers turn that
- * into a BuildWarning.
+ * increases through a node's `children` — both `doc` and `heading` nodes
+ * may hold them; a doc node that merely follows a heading in the same array
+ * (not nested inside its `children`, see SPEC.md's publication example) is
+ * a sibling at the same depth, not implicitly nested under it. Depth beyond
+ * H6 clamps to 6 (levelClamped: true) rather than implying an invalid
+ * heading level — callers turn that into a BuildWarning.
  */
 export function flattenPublication(nodes: PublicationNode[]): FlatPublicationNode[] {
   const out: FlatPublicationNode[] = []

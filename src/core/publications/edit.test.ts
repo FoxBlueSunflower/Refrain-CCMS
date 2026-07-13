@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { getNodeAt, indentNode, insertNode, moveNode, outdentNode, removeNode, renameHeading } from './edit'
 import type { PublicationNode } from './types'
 
-function doc(ref: string): PublicationNode {
-  return { type: 'doc', ref }
+function doc(ref: string, children?: PublicationNode[]): PublicationNode {
+  return children ? { type: 'doc', ref, children } : { type: 'doc', ref }
 }
 
 function heading(title: string, children?: PublicationNode[]): PublicationNode {
@@ -47,6 +47,11 @@ describe('removeNode', () => {
     expect(removeNode(nodes, [0])).toEqual([doc('docs/b.md')])
   })
 
+  it('removes a node nested under a doc, preserving the rest of that doc\'s subtree', () => {
+    const nodes = [doc('docs/a.md', [doc('docs/b.md'), doc('docs/c.md')])]
+    expect(removeNode(nodes, [0, 0])).toEqual([doc('docs/a.md', [doc('docs/c.md')])])
+  })
+
   it('is a no-op for a path that does not resolve', () => {
     const nodes = [doc('docs/a.md')]
     expect(removeNode(nodes, [3])).toEqual(nodes)
@@ -74,9 +79,9 @@ describe('insertNode', () => {
     expect(insertNode(nodes, [], 99, doc('docs/b.md'))).toEqual([doc('docs/a.md'), doc('docs/b.md')])
   })
 
-  it('is a no-op when the parent path resolves to a doc node', () => {
+  it('inserts as a child of a doc node', () => {
     const nodes = [doc('docs/a.md')]
-    expect(insertNode(nodes, [0], 0, doc('docs/b.md'))).toEqual(nodes)
+    expect(insertNode(nodes, [0], 0, doc('docs/b.md'))).toEqual([doc('docs/a.md', [doc('docs/b.md')])])
   })
 })
 
@@ -89,6 +94,11 @@ describe('moveNode', () => {
   it('nests a root doc into a heading that comes after it', () => {
     const nodes = [doc('docs/a.md'), heading('H', [doc('docs/b.md')])]
     expect(moveNode(nodes, [0], [1], 0)).toEqual([heading('H', [doc('docs/a.md'), doc('docs/b.md')])])
+  })
+
+  it('nests a root doc into another doc that comes after it', () => {
+    const nodes = [doc('docs/a.md'), doc('docs/b.md', [doc('docs/c.md')])]
+    expect(moveNode(nodes, [0], [1], 0)).toEqual([doc('docs/b.md', [doc('docs/a.md'), doc('docs/c.md')])])
   })
 
   it('nests a root doc into a heading that comes before it (index shift on removal)', () => {
@@ -133,9 +143,9 @@ describe('indentNode', () => {
     expect(indentNode(nodes, [0])).toEqual(nodes)
   })
 
-  it('is a no-op when the preceding sibling is a doc, not a heading', () => {
+  it('reparents a node as the last child of its preceding doc sibling', () => {
     const nodes = [doc('docs/a.md'), doc('docs/b.md')]
-    expect(indentNode(nodes, [1])).toEqual(nodes)
+    expect(indentNode(nodes, [1])).toEqual([doc('docs/a.md', [doc('docs/b.md')])])
   })
 
   it('indents into an already-nested heading, using a nested path', () => {
@@ -158,6 +168,11 @@ describe('renameHeading', () => {
   it('is a no-op when the path resolves to a doc node', () => {
     const nodes = [doc('docs/a.md')]
     expect(renameHeading(nodes, [0], 'New')).toEqual(nodes)
+  })
+
+  it('renames a heading nested beneath a doc', () => {
+    const nodes = [doc('docs/a.md', [heading('Old')])]
+    expect(renameHeading(nodes, [0, 0], 'New')).toEqual([doc('docs/a.md', [heading('New')])])
   })
 
   it('is a no-op for a path that does not resolve', () => {
