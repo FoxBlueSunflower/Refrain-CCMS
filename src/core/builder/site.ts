@@ -5,6 +5,7 @@ import { DOCS_DIR } from '../workspace/constants'
 import { relativePath, resolveRelativeDocLink } from '../workspace/paths'
 import type { DocTreeNode } from '../workspace/types'
 import { filterConditions } from './conditions'
+import { buildHomePage } from './home-page'
 import { buildNav, docPathToOutputPath } from './nav'
 import { buildSearchIndex } from './search-index'
 import { renderPage } from './html-template'
@@ -99,11 +100,11 @@ export function buildSite(input: PublishInput): PublishResult {
 
   const files: BuiltFile[] = pages.map((page) => renderPageAt(page.outputPath, page.title, page.bodyHtml))
 
-  if (!files.some((f) => f.path === 'index.html')) {
-    files.push(
-      renderPageAt('index.html', siteTitle, '<p>Select a page from the navigation to get started.</p>'),
-    )
-  }
+  const homeFile = buildHomePage({
+    siteTitle,
+    nav: buildNav(docTree, '__home__.html', titleFor),
+    searchIndex,
+  })
 
-  return { files, warnings }
+  return { files, homeFile, warnings }
 }

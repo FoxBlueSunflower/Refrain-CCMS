@@ -140,8 +140,8 @@ describe('buildSite — user-defined dimensions', () => {
   })
 })
 
-describe('buildSite — index.html fallback', () => {
-  it('synthesizes an index.html when no document maps to that output path', () => {
+describe('buildSite — home page', () => {
+  it('always produces a homeFile at index.html, separate from content files, even when no doc maps to that path', () => {
     const documents: IndexDocument[] = [{ path: 'docs/guides/setup.md', text: '# Setup\n' }]
     const docTree: DocTreeNode[] = [
       { kind: 'folder', name: 'Guides', path: 'guides', children: [{ kind: 'file', name: 'setup', path: 'guides/setup.md' }] },
@@ -157,6 +157,29 @@ describe('buildSite — index.html fallback', () => {
       siteTitle: 'Test Site',
     })
 
-    expect(result.files.map((f) => f.path).sort()).toEqual(['guides/setup.html', 'index.html'])
+    expect(result.files.map((f) => f.path).sort()).toEqual(['guides/setup.html'])
+    expect(result.homeFile.path).toBe('index.html')
+    expect(result.homeFile.contents).toContain('Test Site')
+    expect(result.homeFile.contents).toContain('href="content/guides/setup.html"')
+  })
+
+  it("doesn't collide with a real docs/index.md, which stays a normal content page", () => {
+    const documents: IndexDocument[] = [{ path: 'docs/index.md', text: '---\ntitle: Welcome\n---\n\nBody.\n' }]
+    const docTree: DocTreeNode[] = [{ kind: 'file', name: 'index', path: 'index.md' }]
+
+    const result = buildSite({
+      documents,
+      docTree,
+      snippets: {},
+      variables: {},
+      conditionsFile: {},
+      profile: {},
+      siteTitle: 'Test Site',
+    })
+
+    expect(result.files.map((f) => f.path)).toEqual(['index.html'])
+    expect(result.files[0].contents).toContain('Body.')
+    expect(result.homeFile.path).toBe('index.html')
+    expect(result.homeFile.contents).toContain('href="content/index.html"')
   })
 })

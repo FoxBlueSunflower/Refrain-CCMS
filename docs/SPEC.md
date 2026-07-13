@@ -15,7 +15,7 @@ Distribution: static PWA on GitHub Pages. Data: plain files in a user-chosen fol
 | A4 Conditional tags | `:::when audience=internal` fenced blocks; publish profiles choose what's included | The differentiator nothing cheap has. Dimensions and values are fully user-defined in-app — the format itself just enforces "tags only," no fixed vocabulary |
 | A8 Where-used | Index panel: "warning-banner appears in 7 docs"; click-through; pre-publish impact list | The star screen (+24); locally it's just scanning files — nearly free |
 | A7 Versioning | Automatic timestamped snapshots to `.app/history/` on publish + manual save-points; restore = copy back | Simple snapshot model; users with git get real VCS for free on top |
-| A5 Publish | Client-side build → `publish/` folder of static HTML with sidebar nav + client search | The output that makes it a product, not a notes app |
+| A5 Publish | Client-side build → zip archive (sidebar nav + client search) saved wherever the user picks via the browser's save dialog | The output that makes it a product, not a notes app |
 | B1 Change digest | Publish diff vs. last publish → `CHANGELOG.md` + optional "What's new" page in the site | Errata-engine DNA; trivial once snapshots exist |
 | A9 Import/Export | Import = "put .md files in the folder." Export = the folder itself | Satisfied by architecture; zero build cost |
 | B2 Ownership | Inherent: files on user's disk | The covenant, free |
@@ -62,12 +62,27 @@ my-docs/                          ← user picks/creates this folder
 ├── publications/                 ← ordered compositions of docs (Phase 9); each
 │   └── user-guide.json              file is one publication — a tree of doc
 │                                     references and structural headings
-├── publish/                      ← generated site (safe to delete; rebuilt anytime)
 └── .app/                         ← app-managed; rebuildable except history/
     ├── index.json                ← where-used cache (disposable; rebuilt by scan)
     ├── history/                  ← snapshots: 2026-07-08T1430_publish/ ...
     └── publish-log.json          ← one entry per publish (digest source)
 ```
+
+There is no `publish/` folder in the workspace — publishing never writes
+generated HTML back into the workspace itself. Instead, Publish builds the
+static site in memory and packages it as a `.zip` archive, which the user
+saves wherever they choose via the browser's native save-file dialog (one
+export per save, so nothing gets silently overwritten — repeat exports are
+just repeat saves). Inside every exported zip:
+- `index.html` at the archive root — a Home landing page (site title + a
+  table-of-contents linking into every page), generated fresh on every
+  export, never authored by the user.
+- `content/` — the rest of the built site: one HTML page per document (or,
+  for a Publication export, the single composed page), plus the shared
+  nav/search/print-stylesheet chrome.
+
+Per-Publication exports (Phase 9c) follow the same shape — a Home page at
+the zip root linking to the one composed page under `content/`.
 
 ### File contents
 

@@ -33,3 +33,18 @@ export function buildNav(
     }
   })
 }
+
+/**
+ * Rewrites every file href to `${prefix}/${href}` and forces `active` off.
+ * Used by the Home landing page (src/core/builder/home-page.ts), which sits
+ * outside the content/ folder its nav hrefs point into, and is never itself
+ * the "current" content page.
+ */
+export function prefixNavHrefs(nodes: NavNode[], prefix: string): NavNode[] {
+  return nodes.map((node): NavNode => {
+    if (node.kind === 'folder') {
+      return { kind: 'folder', title: node.title, children: prefixNavHrefs(node.children, prefix) }
+    }
+    return { kind: 'file', title: node.title, href: `${prefix}/${node.href}`, active: false }
+  })
+}

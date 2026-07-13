@@ -60,9 +60,15 @@ Parse :::when dimension=value blocks; publish profiles from workspace.json;
 src/core/builder: resolve + filter per profile → static HTML site into
 publish/ (sidebar nav from folder tree, per-page titles, client-side search,
 print stylesheet for Ctrl+P → PDF); "Publish" button with profile picker.
+**Update (multi-export/Home-page revision):** Publish no longer writes into
+a workspace `publish/` folder — it zips the built site and prompts the user
+to save it wherever they choose, with a generated Home page at the zip root
+and the rest of the site under `content/` (see SPEC.md Part 2). This
+replaces the "opens locally" acceptance bullet below.
 **Accept when:**
 - [x] `internal` profile shows internal blocks; `public` omits them
-- [x] publish/ opens locally as a working site: nav, search, styling
+- [x] the exported zip opens locally as a working site: Home page, nav,
+      search, styling all resolve correctly once unzipped
 - [x] Unknown condition tag → build warning listing file + line
 - [x] Ctrl+P on a published page yields a clean printable PDF
 
