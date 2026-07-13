@@ -12,6 +12,8 @@ export interface WorkspaceIndex {
   documentPublications: Record<string, DocPublicationRef[]>
   /** snippet name -> other snippet names whose body directly includes it via {{> name}} (one level; independent of whether either snippet is itself pulled into any document). */
   snippetsUsedBySnippets: Record<string, string[]>
+  /** variable key -> snippet names whose body directly references {{key}} (one level; mirrors snippetsUsedBySnippets, independent of whether the snippet itself is pulled into any document). */
+  variablesUsedBySnippets: Record<string, string[]>
 }
 
 /** A publication that includes a document, as surfaced in the document's where-used results. */

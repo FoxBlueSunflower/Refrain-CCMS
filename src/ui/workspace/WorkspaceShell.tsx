@@ -161,6 +161,7 @@ export function WorkspaceShell({ handle, justCreatedSample = false }: WorkspaceS
     conditions: {},
     documentPublications: {},
     snippetsUsedBySnippets: {},
+    variablesUsedBySnippets: {},
   })
   const [whereUsedOpen, setWhereUsedOpen] = useState(false)
 

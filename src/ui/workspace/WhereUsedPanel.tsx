@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import type { WorkspaceIndex } from '../../core/indexer/types'
+import { publicationsForDocuments } from '../../core/indexer/derive'
+import type { DocPublicationRef, WorkspaceIndex } from '../../core/indexer/types'
 import type { SnippetSource } from '../../core/resolver/types'
 import type { VariablesFile } from '../../core/workspace/types'
+import { CollapsibleSection } from '../shared/CollapsibleSection'
 import { EmptyState } from '../shared/EmptyState'
 
 interface WhereUsedPanelProps {
@@ -51,11 +53,14 @@ export function WhereUsedPanel({
   const variableKeys = allKeys(Object.keys(variables), index.variables)
   const snippetKeys = allKeys(Object.keys(snippets), index.snippets)
   const documentKeys = allKeys(documents, index.documentPublications)
-  const usedBy =
+  const snippetsUsingVariable = selection?.kind === 'variable' ? index.variablesUsedBySnippets[selection.key] ?? [] : []
+  const documentsUsingSelection =
     selection && selection.kind !== 'document'
       ? (selection.kind === 'variable' ? index.variables : index.snippets)[selection.key] ?? []
       : []
-  const usedBySnippets = selection && selection.kind === 'snippet' ? index.snippetsUsedBySnippets[selection.key] ?? [] : []
+  const snippetsUsingSnippet = selection?.kind === 'snippet' ? index.snippetsUsedBySnippets[selection.key] ?? [] : []
+  const publicationsUsingSelection =
+    selection && selection.kind !== 'document' ? publicationsForDocuments(index, documentsUsingSelection) : []
   const usedInPublications = selection && selection.kind === 'document' ? index.documentPublications[selection.key] ?? [] : []
 
   return (
@@ -134,42 +139,32 @@ export function WhereUsedPanel({
 
           {!selection && <p className="text-sm text-gray-400">Select a variable, snippet, or document on the left to see where it's used.</p>}
 
-          {selection && selection.kind !== 'document' && usedBy.length === 0 && usedBySnippets.length === 0 && (
-            <EmptyState title="Not used anywhere yet" />
+          {selection && selection.kind === 'variable' && (
+            <div className="flex-1 overflow-auto">
+              <CollapsibleSection title="Snippets" count={snippetsUsingVariable.length}>
+                <SnippetRefList names={snippetsUsingVariable} onOpenSnippet={onOpenSnippet} />
+              </CollapsibleSection>
+              <CollapsibleSection title="Documents" count={documentsUsingSelection.length}>
+                <DocumentRefList docPaths={documentsUsingSelection} onOpenDocument={onOpenDocument} />
+              </CollapsibleSection>
+              <CollapsibleSection title="Publications" count={publicationsUsingSelection.length}>
+                <PublicationRefList publications={publicationsUsingSelection} onOpenPublication={onOpenPublication} />
+              </CollapsibleSection>
+            </div>
           )}
 
-          {selection && selection.kind === 'snippet' && usedBySnippets.length > 0 && (
-            <ul className="mb-3 space-y-1">
-              {usedBySnippets.map((name) => (
-                <li key={`snippet-${name}`}>
-                  <button
-                    type="button"
-                    className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
-                    onClick={() => onOpenSnippet(name)}
-                  >
-                    {name}
-                    <span className="ml-2 text-xs text-gray-500">snippet</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {selection && selection.kind !== 'document' && usedBy.length > 0 && (
-            <ul className="flex-1 space-y-1 overflow-auto">
-              {usedBy.map((docPath) => (
-                <li key={docPath}>
-                  <button
-                    type="button"
-                    className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
-                    onClick={() => onOpenDocument(docPath)}
-                  >
-                    {docLabel(docPath)}
-                    <span className="ml-2 text-xs text-gray-500">{docPath}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {selection && selection.kind === 'snippet' && (
+            <div className="flex-1 overflow-auto">
+              <CollapsibleSection title="Used by other snippets" count={snippetsUsingSnippet.length}>
+                <SnippetRefList names={snippetsUsingSnippet} onOpenSnippet={onOpenSnippet} />
+              </CollapsibleSection>
+              <CollapsibleSection title="Documents" count={documentsUsingSelection.length}>
+                <DocumentRefList docPaths={documentsUsingSelection} onOpenDocument={onOpenDocument} />
+              </CollapsibleSection>
+              <CollapsibleSection title="Publications" count={publicationsUsingSelection.length}>
+                <PublicationRefList publications={publicationsUsingSelection} onOpenPublication={onOpenPublication} />
+              </CollapsibleSection>
+            </div>
           )}
 
           {selection && selection.kind === 'document' && usedInPublications.length === 0 && (
@@ -195,5 +190,70 @@ export function WhereUsedPanel({
         </div>
       </div>
     </div>
+  )
+}
+
+function SnippetRefList({ names, onOpenSnippet }: { names: string[]; onOpenSnippet: (name: string) => void }) {
+  if (names.length === 0) return <EmptyState title="None" />
+  return (
+    <ul className="space-y-1">
+      {names.map((name) => (
+        <li key={name}>
+          <button
+            type="button"
+            className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+            onClick={() => onOpenSnippet(name)}
+          >
+            {name}
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function DocumentRefList({ docPaths, onOpenDocument }: { docPaths: string[]; onOpenDocument: (docPath: string) => void }) {
+  if (docPaths.length === 0) return <EmptyState title="None" />
+  return (
+    <ul className="space-y-1">
+      {docPaths.map((docPath) => (
+        <li key={docPath}>
+          <button
+            type="button"
+            className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+            onClick={() => onOpenDocument(docPath)}
+          >
+            {docLabel(docPath)}
+            <span className="ml-2 text-xs text-gray-500">{docPath}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function PublicationRefList({
+  publications,
+  onOpenPublication,
+}: {
+  publications: DocPublicationRef[]
+  onOpenPublication: (path: string) => void
+}) {
+  if (publications.length === 0) return <EmptyState title="None" />
+  return (
+    <ul className="space-y-1">
+      {publications.map((pub) => (
+        <li key={pub.path}>
+          <button
+            type="button"
+            className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-700"
+            onClick={() => onOpenPublication(pub.path)}
+          >
+            {pub.title}
+            <span className="ml-2 text-xs text-gray-500">{pub.path}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }

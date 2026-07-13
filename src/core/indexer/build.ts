@@ -66,6 +66,11 @@ function buildSnippetUsage(snippets: IndexSnippet[], snippetRefs: Map<string, Sc
   return invert(snippets.map((s) => [s.name, snippetRefs.get(s.name)!.snippets] as const))
 }
 
+/** variable key -> snippet names whose body directly references it (one level). */
+function buildVariableUsageBySnippets(snippets: IndexSnippet[], snippetRefs: Map<string, ScannedRefs>): Record<string, string[]> {
+  return invert(snippets.map((s) => [s.name, snippetRefs.get(s.name)!.variables] as const))
+}
+
 /** doc path -> publications that include it, sorted by publication title. */
 function buildDocumentPublications(publications: IndexPublication[]): Record<string, DocPublicationRef[]> {
   const map = new Map<string, DocPublicationRef[]>()
@@ -87,7 +92,8 @@ function buildDocumentPublications(publications: IndexPublication[]): Record<str
  * Builds the where-used index: for every variable, snippet, and condition,
  * the sorted list of document paths that use it — directly, or transitively
  * through a transcluded snippet — plus, for every document, the publications
- * that include it.
+ * that include it, and, for every variable, the snippets that directly
+ * reference it.
  */
 export function buildWorkspaceIndex(input: IndexInput, builtAt: string = new Date().toISOString()): WorkspaceIndex {
   const snippetRefs = new Map<string, ScannedRefs>(
@@ -103,5 +109,6 @@ export function buildWorkspaceIndex(input: IndexInput, builtAt: string = new Dat
     conditions: invert(perDoc.map(([path, usage]) => [path, usage.conditions] as const)),
     documentPublications: buildDocumentPublications(input.publications ?? []),
     snippetsUsedBySnippets: buildSnippetUsage(input.snippets, snippetRefs),
+    variablesUsedBySnippets: buildVariableUsageBySnippets(input.snippets, snippetRefs),
   }
 }
