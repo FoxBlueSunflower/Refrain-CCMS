@@ -14,6 +14,9 @@ export type BuildWarningType =
   | 'frontmatter'
   | 'heading-level-exceeds-h6'
   | 'missing-publication-doc'
+  | 'snippet-nested-multiline'
+  | 'condition-nested-invalid'
+  | 'block-breaks-table'
 
 /** A build-time problem worth surfacing to the writer. `line` is 1-indexed and only set for line-locatable warnings. */
 export interface BuildWarning {

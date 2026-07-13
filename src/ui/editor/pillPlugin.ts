@@ -1,7 +1,8 @@
 import { syntaxTree } from '@codemirror/language'
-import { EditorSelection, RangeSetBuilder, StateEffect, type Extension } from '@codemirror/state'
+import { EditorSelection, RangeSetBuilder, StateEffect, type Extension, type Text } from '@codemirror/state'
 import { Decoration, EditorView, MatchDecorator, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { parseFrontmatter } from '../../core/frontmatter/parse'
+import { computeFencedLines } from '../../core/markdown/fences'
 import { createTokenPattern, findTokenMatches } from '../../core/resolver/tokens'
 import type { ResolveContext } from '../../core/resolver/types'
 import { classifyLink, resolveRelativeDocLink, type LinkClassification } from '../../core/workspace/paths'
@@ -77,10 +78,33 @@ class SnippetPillWidget extends WidgetType {
   }
 }
 
+/**
+ * A `{{key}}`/`{{> name}}` shown as a literal documentation example inside a
+ * fenced code block is never resolved (src/core/resolver/resolve.ts) — this
+ * mirrors that here so the pill/tooltip display doesn't mislead a writer
+ * into thinking it'll be substituted. Cached per `view.state.doc` identity
+ * (a cheap reference check) since `decorate` runs once per match, not once
+ * per document scan.
+ */
+function createFencedLineChecker(): (view: EditorView, from: number) => boolean {
+  let cache: { doc: Text; fenced: boolean[] } | null = null
+  return (view, from) => {
+    if (!cache || cache.doc !== view.state.doc) {
+      cache = { doc: view.state.doc, fenced: computeFencedLines(view.state.doc.toString().split(/\r\n|\n/)) }
+    }
+    const lineIndex = view.state.doc.lineAt(from).number - 1
+    return cache.fenced[lineIndex] ?? false
+  }
+}
+
 function createMatcher(getResolveContext: () => ResolveContext): MatchDecorator {
+  const isFencedLine = createFencedLineChecker()
+
   return new MatchDecorator({
     regexp: createTokenPattern(),
     decorate(add, from, to, match, view) {
+      if (isFencedLine(view, from)) return // literal example syntax inside a code fence — never collapse into a pill
+
       const selection = view.state.selection.main
       if (selection.from <= to && selection.to >= from) return // cursor touches this token — leave it as editable raw text
 

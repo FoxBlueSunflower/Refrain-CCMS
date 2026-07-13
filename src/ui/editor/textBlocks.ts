@@ -28,6 +28,21 @@ export function isLineBoundary(doc: string, pos: number): boolean {
   return pos === 0 || pos === doc.length || doc[pos - 1] === '\n' || doc[pos] === '\n'
 }
 
+const BLOCKQUOTE_PREFIX = /^\s*>\s?/
+
+/**
+ * The blockquote marker (e.g. "> ") the line containing `pos` already
+ * carries, or "" if it isn't a blockquote line. Toolbar block-insert actions
+ * use this to nest newly-inserted content inside an active blockquote
+ * instead of terminating it — CommonMark only treats a nested block as part
+ * of the quote when every one of its lines repeats the "> " prefix.
+ */
+export function ambientBlockquotePrefix(doc: string, pos: number): string {
+  const line = doc.slice(lineStart(doc, pos), lineEnd(doc, pos))
+  const match = BLOCKQUOTE_PREFIX.exec(line)
+  return match ? match[0] : ''
+}
+
 /**
  * Wraps `[from, to)` of `doc` between bare `opening`/`closing` fence lines
  * (used for ":::when" condition blocks and fenced code blocks).

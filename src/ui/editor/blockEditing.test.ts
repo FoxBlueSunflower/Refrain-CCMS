@@ -9,7 +9,26 @@ import {
   buildSpaceInsertion,
   buildSubheadingInsertion,
   buildTableInsertion,
+  touchesTableRow,
 } from './blockEditing'
+
+describe('touchesTableRow', () => {
+  it('is true when the cursor sits on a table row', () => {
+    const doc = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+    const pos = doc.indexOf('| 1 | 2 |') + 2
+    expect(touchesTableRow(doc, pos, pos)).toBe(true)
+  })
+
+  it('is true when the selection spans a table row and adjacent text', () => {
+    const doc = 'Before.\n| 1 | 2 |\nAfter.'
+    expect(touchesTableRow(doc, 0, doc.length)).toBe(true)
+  })
+
+  it('is false for an ordinary paragraph line', () => {
+    const doc = 'Just a paragraph.'
+    expect(touchesTableRow(doc, 0, doc.length)).toBe(false)
+  })
+})
 
 describe('buildBulletListInsertion', () => {
   it('prefixes the current (empty) line when nothing is selected', () => {
@@ -59,6 +78,32 @@ describe('buildBlockquoteInsertion', () => {
     const result = buildBlockquoteInsertion(doc, 0, doc.length)
     expect(result.insertText).toBe('> Line one.\n> Line two.')
   })
+
+  it('nests a blockquote inside an existing blockquote line instead of duplicating the marker incorrectly', () => {
+    const doc = '> Already quoted.'
+    const result = buildBlockquoteInsertion(doc, 0, doc.length)
+    expect(result.insertText).toBe('> > Already quoted.')
+  })
+})
+
+describe('applyLinePrefix ambient blockquote nesting', () => {
+  it('nests a bulleted list inside an active blockquote instead of terminating it', () => {
+    const doc = '> A note.'
+    const result = buildBulletListInsertion(doc, 0, doc.length)
+    expect(result.insertText).toBe('> - A note.')
+  })
+
+  it('nests a checklist inside an active blockquote, preserving the quote marker on every line', () => {
+    const doc = '> First.\n> Second.'
+    const result = buildChecklistInsertion(doc, 0, doc.length)
+    expect(result.insertText).toBe('> - [ ] First.\n> - [ ] Second.')
+  })
+
+  it('does not add a blockquote prefix when the line is not already quoted', () => {
+    const doc = 'Not quoted.'
+    const result = buildBulletListInsertion(doc, 0, doc.length)
+    expect(result.insertText).toBe('- Not quoted.')
+  })
 })
 
 describe('buildCodeBlockInsertion', () => {
@@ -75,6 +120,19 @@ describe('buildCodeBlockInsertion', () => {
     expect(result.insertText).toBe('```\nconst x = 1;\n```')
     const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
     expect(combined).toBe('```\nconst x = 1;\n```')
+  })
+
+  it('nests a blank fenced scaffold inside an active blockquote, cursor on the blank quoted body line', () => {
+    const doc = '> '
+    const result = buildCodeBlockInsertion(doc, 0, 0)
+    expect(result.insertText).toBe('> ```\n> \n> ```\n')
+    expect(result.insertText.slice(0, result.cursorPos)).toBe('> ```\n')
+  })
+
+  it('nests a wrapped selection inside an active blockquote, keeping the marker on every line', () => {
+    const doc = '> const x = 1;'
+    const result = buildCodeBlockInsertion(doc, 0, doc.length)
+    expect(result.insertText).toBe('> ```\n> const x = 1;\n> ```')
   })
 })
 
@@ -137,6 +195,12 @@ describe('buildTableInsertion', () => {
     const result = buildTableInsertion(doc, from, to)
     const combined = doc.slice(0, result.from) + result.insertText + doc.slice(result.to)
     expect(combined).toBe('Before \n\n| Column 1 | Column 2 |\n| --- | --- |\n| Cell 1 | Cell 2 |\n\n After')
+  })
+
+  it('prefixes every template row with the ambient blockquote marker so the table nests in the quote', () => {
+    const doc = '> '
+    const result = buildTableInsertion(doc, 2, 2)
+    expect(result.insertText).toContain('> | Column 1 | Column 2 |\n> | --- | --- |\n> | Cell 1 | Cell 2 |')
   })
 })
 

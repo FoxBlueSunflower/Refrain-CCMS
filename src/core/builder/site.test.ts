@@ -106,6 +106,68 @@ describe('buildSite — condition warnings', () => {
   })
 })
 
+describe('buildSite — nesting warnings', () => {
+  it('warns on a condition nested inside a blockquote, naming the file and line', () => {
+    const documents: IndexDocument[] = [
+      { path: 'docs/index.md', text: '---\ntitle: Test\n---\n\n> :::when audience=internal\n> Note.\n> :::\n' },
+    ]
+    const docTree: DocTreeNode[] = [{ kind: 'file', name: 'index', path: 'index.md' }]
+    const conditionsFile: ConditionsFile = { audience: ['customer', 'internal'], output: ['web'] }
+
+    const result = buildSite({
+      documents,
+      docTree,
+      snippets: {},
+      variables: {},
+      conditionsFile,
+      profile: { audience: ['customer', 'internal'], output: ['web'] },
+      siteTitle: 'Test Site',
+    })
+
+    expect(result.warnings).toContainEqual(
+      expect.objectContaining({ type: 'condition-nested-invalid', file: 'docs/index.md', message: expect.stringMatching(/blockquote/i) }),
+    )
+  })
+
+  it('warns on a multi-line snippet spliced into a table cell, naming the multi-line problem', () => {
+    const documents: IndexDocument[] = [
+      { path: 'docs/index.md', text: '---\ntitle: Test\n---\n\n| A | B |\n| --- | --- |\n| {{> changelog}} | x |\n' },
+    ]
+    const docTree: DocTreeNode[] = [{ kind: 'file', name: 'index', path: 'index.md' }]
+
+    const result = buildSite({
+      documents,
+      docTree,
+      snippets: { changelog: '---\nname: changelog\n---\n\nFirst line.\nSecond line.\n' },
+      variables: {},
+      conditionsFile: {},
+      profile: {},
+      siteTitle: 'Test Site',
+    })
+
+    expect(result.warnings).toContainEqual(
+      expect.objectContaining({ type: 'snippet-nested-multiline', file: 'docs/index.md', message: expect.stringMatching(/multiple lines/i) }),
+    )
+  })
+
+  it('does not warn on an ordinary document with no nested constructs', () => {
+    const documents: IndexDocument[] = [{ path: 'docs/index.md', text: '---\ntitle: Test\n---\n\nJust a plain paragraph.\n' }]
+    const docTree: DocTreeNode[] = [{ kind: 'file', name: 'index', path: 'index.md' }]
+
+    const result = buildSite({
+      documents,
+      docTree,
+      snippets: {},
+      variables: {},
+      conditionsFile: {},
+      profile: {},
+      siteTitle: 'Test Site',
+    })
+
+    expect(result.warnings).toEqual([])
+  })
+})
+
 describe('buildSite — user-defined dimensions', () => {
   it('filters correctly through the full pipeline using a dimension other than audience/output', () => {
     const documents: IndexDocument[] = [

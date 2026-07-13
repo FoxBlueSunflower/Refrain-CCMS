@@ -93,6 +93,20 @@ describe('filterConditions', () => {
     expect(result.warnings).toEqual([])
     expect(result.text).toBe('Before.\nAfter.')
   })
+
+  it('treats a ":::when"-looking line inside a fenced code block as a literal documentation example, not a real condition', () => {
+    const text = ['Before.', '```', ':::when audience=internal', 'Example body.', ':::', '```', 'After.'].join('\n')
+    const result = filterConditions(text, 'docs/index.md', profile(), conditionsFile)
+    expect(result.warnings).toEqual([])
+    expect(result.text).toBe(text)
+  })
+
+  it('still filters a real condition block outside the fence in the same document', () => {
+    const text = [':::when audience=internal', 'Real note.', ':::', '```', ':::when audience=internal', '```'].join('\n')
+    const result = filterConditions(text, 'docs/index.md', profile({ audience: ['customer'] }), conditionsFile)
+    expect(result.warnings).toEqual([])
+    expect(result.text).toBe(['```', ':::when audience=internal', '```'].join('\n'))
+  })
 })
 
 describe('annotateConditionBlocks', () => {
